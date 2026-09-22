@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker + KV 架构的复习卡片应用
- * 特性：统一高质感毛玻璃 UI + 自适应文本编辑 + 双击 Logo 调色盘氛围系统
+ * 特性：统一高质感毛玻璃 UI + 自适应文本编辑 + 调色盘 + 带去重与详情弹窗的 JSON 导入
  */
 
 export default {
@@ -88,7 +88,6 @@ body{
 button,input,textarea,select{font:inherit}
 button{cursor:pointer}
 
-/* 统一毛玻璃基类 */
 .glass {
   background: var(--glass-bg);
   backdrop-filter: blur(28px) saturate(140%);
@@ -172,7 +171,6 @@ button{cursor:pointer}
 .empty .big{font-size:42px;margin-bottom:12px;opacity:.5}
 .empty h2{font-size:18px;margin:0 0 8px;color:var(--text)}.empty p{font-size:13px;margin:0;line-height:1.6}
 
-/* 卡片容器：动态毛玻璃色调 */
 .card{
   width:480px;height:480px;animation:appear .35s ease both;
   position:relative;padding:28px 30px 24px;display:flex;flex-direction:column;
@@ -188,7 +186,6 @@ button{cursor:pointer}
 .card.small{width:280px;height:340px;padding:20px}
 @keyframes appear{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 
-/* 收藏图标 */
 .star-btn{
   position:absolute;top:22px;left:24px;font-size:20px;color:#cbd5e1;
   cursor:pointer;transition:transform .15s ease, color .15s ease;z-index:2;line-height:1;
@@ -197,20 +194,17 @@ button{cursor:pointer}
 .star-btn:hover{transform:scale(1.2)}
 .star-btn.starred{color:var(--star-color)}
 
-/* 多分类标签 */
 .tags-container{
   position:absolute;top:22px;right:24px;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:65%;
 }
 .card.small .tags-container{top:16px;right:16px}
 .tag-badge{background:rgba(30, 41, 59, 0.08);color:#334155;padding:3px 8px;border-radius:8px;font-weight:600;font-size:11px}
 
-/* 问题部分 */
 .qa-question{margin-top:20px;display:flex;flex-direction:column;flex-shrink:0}
 .qa-question small, .answer small{display:block;color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:6px;flex-shrink:0}
 .question{font-size:17px;font-weight:700;line-height:1.45;padding:6px 8px;border-radius:10px;transition:background .15s;color:#0f172a}
 .question:hover,.answer-content:hover{background:rgba(255,255,255,.5)}
 
-/* 答案部分 */
 .answer{
   border-top:1px dashed rgba(148, 163, 184, 0.35);margin-top:14px;padding-top:12px;
   display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;
@@ -223,7 +217,6 @@ button{cursor:pointer}
 .answer-content::-webkit-scrollbar, .expanded-scroll::-webkit-scrollbar{width:4px}
 .answer-content::-webkit-scrollbar-thumb, .expanded-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12);border-radius:4px}
 
-/* 无感自适应编辑器 */
 .inline-editor {
   width: 100%; border: 1px solid rgba(37, 99, 235, 0.4); border-radius: 10px;
   padding: 8px 10px; font-family: inherit; font-size: inherit; line-height: inherit;
@@ -232,7 +225,6 @@ button{cursor:pointer}
   transition: all 0.15s ease;
 }
 
-/* Markdown 排版重置 */
 .markdown-body p { margin: 0 0 8px 0; }
 .markdown-body p:last-child { margin-bottom: 0; }
 .markdown-body ul, .markdown-body ol { margin: 4px 0 8px 20px; padding: 0; }
@@ -259,7 +251,6 @@ button{cursor:pointer}
 }
 .modal-layer.show{opacity:1;pointer-events:auto}
 
-/* 主题调色盘弹窗面板 */
 .theme-palette-modal {
   position: fixed; z-index: 35; top: 50%; left: 50%; transform: translate(-50%, -46%) scale(.95);
   width: min(520px, 92vw); background: rgba(255, 255, 255, 0.82);
@@ -283,7 +274,6 @@ button{cursor:pointer}
 .color-picker-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; }
 .color-picker-row input[type="color"] { border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; background: none; }
 
-/* 展开 Modal */
 .card-expanded-modal{
   position:fixed;z-index:35;top:50%;left:50%;transform:translate(-50%,-46%) scale(.95);
   width:min(780px,92vw);max-height:85vh;
@@ -296,7 +286,6 @@ button{cursor:pointer}
 .card-expanded-modal.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
 .expanded-scroll{overflow-y:auto;flex:1;padding-right:6px}
 
-/* 侧边抽屉 */
 .drawer{
   position:fixed;z-index:21;top:0;right:0;height:100dvh;width:min(500px,94vw);
   transform:translateX(102%);transition:transform .3s cubic-bezier(.2,.8,.2,1);
@@ -310,7 +299,6 @@ button{cursor:pointer}
 }
 .drawer-head h2{font-size:17px;margin:0}.drawer-body{padding:20px 24px 50px}
 
-/* 模态框 */
 .dialog {
   position: fixed; z-index: 30; top: 50%; left: 50%; transform: translate(-50%, -46%) scale(0.95);
   width: min(560px, 92vw); background: rgba(255, 255, 255, 0.85);
@@ -323,6 +311,12 @@ button{cursor:pointer}
 .dialog-head h3 { margin: 0; font-size: 18px; font-weight: 700; }
 .dialog-body { display: flex; flex-direction: column; gap: 16px; }
 .dialog-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* 导入结果详情统计卡片 */
+.import-result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 6px; }
+.import-res-item { background: rgba(255,255,255,0.6); padding: 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.8); text-align: center; }
+.import-res-item .num { font-size: 20px; font-weight: 800; }
+.import-res-item .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); display:flex; justify-content:space-between; }
@@ -471,6 +465,37 @@ button{cursor:pointer}
 <!-- 卡片双击展开 Modal -->
 <div class="card-expanded-modal" id="expandedCardModal"></div>
 
+<!-- JSON 导入结果详情 Dialog -->
+<div class="dialog" id="importResultDialog">
+  <div class="dialog-head">
+    <h3>📥 JSON 导入结果详情</h3>
+    <button class="icon-btn" id="closeImportResultBtn">×</button>
+  </div>
+  <div class="dialog-body">
+    <div style="font-size:13px;color:var(--text);">导入任务已完成，详细统计如下：</div>
+    <div class="import-result-grid">
+      <div class="import-res-item">
+        <div class="num" id="resAddedCount" style="color:#10b981">0</div>
+        <div class="lbl">新增题目</div>
+      </div>
+      <div class="import-res-item">
+        <div class="num" id="resSkippedCount" style="color:#f59e0b">0</div>
+        <div class="lbl">重复跳过</div>
+      </div>
+      <div class="import-res-item">
+        <div class="num" id="resInvalidCount" style="color:#ef4444">0</div>
+        <div class="lbl">格式无效</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.5;background:rgba(255,255,255,0.5);padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.7);">
+      ℹ️ <b>去重规则说明：</b>系统根据题目标题自动去重（忽略前后空格及大小写差异）。重复题目已保留原有内容，未进行覆盖。
+    </div>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn primary" id="confirmImportResultBtn" style="width:100%;">确定</button>
+  </div>
+</div>
+
 <!-- 弹窗：添加/编辑题目 -->
 <div class="dialog" id="itemDialog">
   <div class="dialog-head">
@@ -550,7 +575,6 @@ button{cursor:pointer}
     {id:uid(),category:'JS, 前端',title:'使用 \`async/await\` 的优势？',content:'* 消除回调地狱（Callback Hell）\\n* 代码逻辑呈同步书写样式，可读性更高\\n* 可使用标准的 \`try/catch\` 捕获异步异常', starred: false}
   ];
 
-  // 预设高质感氛围配色组
   const PRESET_THEMES = [
     { name: '极光冰蓝', bg: 'linear-gradient(135deg, #e0e6ed 0%, #edf2f7 50%, #dbe3ed 100%)', cardOp: '0.75', pickColor: '#e0e6ed' },
     { name: '莫兰迪粉', bg: 'linear-gradient(135deg, #f5e6e8 0%, #f9f0f2 50%, #ebd8dc 100%)', cardOp: '0.75', pickColor: '#f5e6e8' },
@@ -578,7 +602,6 @@ button{cursor:pointer}
     document.documentElement.style.setProperty('--bg-gradient', themeObj.bg);
     document.documentElement.style.setProperty('--card-bg', 'rgba(255, 255, 255, ' + (themeObj.cardOp || '0.75') + ')');
     
-    // 如果是暗色系微调文字
     if(themeObj.dark) {
       document.documentElement.style.setProperty('--text', '#f8fafc');
       document.documentElement.style.setProperty('--muted', '#94a3b8');
@@ -607,7 +630,6 @@ button{cursor:pointer}
     });
   }
 
-  // 双击 Logo 交互
   $('#appLogo').addEventListener('dblclick', (e) => {
     e.stopPropagation();
     renderThemePresets();
@@ -1064,6 +1086,7 @@ button{cursor:pointer}
     $('#itemDialog').classList.remove('show');
     $('#themeModal').classList.remove('show');
     $('#expandedCardModal').classList.remove('show');
+    $('#importResultDialog').classList.remove('show');
   }
 
   function openDrawer(){ openOverlay(); $('#drawer').classList.add('open'); }
@@ -1098,6 +1121,8 @@ button{cursor:pointer}
   $('#manageBtn').onclick = openDrawer;
   $('#closeDrawerBtn').onclick = closeOverlay;
   $('#overlay').onclick = closeOverlay;
+  $('#closeImportResultBtn').onclick = closeOverlay;
+  $('#confirmImportResultBtn').onclick = closeOverlay;
 
   $('#manualSyncBtn').onclick = async () => {
     await loadDataFromKV();
@@ -1188,17 +1213,82 @@ button{cursor:pointer}
     const blob=new Blob([JSON.stringify({points,pool,seen:[...seen],draws,theme:currentTheme},null,2)],{type:'application/json'});
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='review-cards.json';a.click();URL.revokeObjectURL(a.href)
   };
+
   $('#importBtn').onclick=()=>$('#importFile').click();
-  $('#importFile').onchange=e=>{
-    const f=e.target.files[0];if(!f)return;const r=new FileReader();
-    r.onload=async()=>{try{const d=JSON.parse(r.result);const arr=Array.isArray(d)?d:d.points;if(!Array.isArray(arr))throw 0;
-      points=arr.map(p=>({id:p.id||uid(),category:String(p.category||''),title:String(p.title||'未命名'),content:String(p.content||''),starred:!!p.starred}));
-      seen=new Set(Array.isArray(d.seen)?d.seen:[]);draws=Number(d.draws)||0;pool=[];
-      if(d.theme) applyTheme(d.theme);
-      syncPool(false);updateCategoryOptions();renderList();
-      await saveDataToKV();toast('导入成功');
-    }catch{toast('导入失败：JSON 格式不正确')}};
-    r.readAsText(f);e.target.value='';
+
+  // JSON 导入处理：依据标题去重，默认追加添加，弹出结果详情 Modal
+  $('#importFile').onchange = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = async () => {
+      try {
+        const d = JSON.parse(r.result);
+        const incoming = Array.isArray(d) ? d : d.points;
+        if (!Array.isArray(incoming)) throw new Error('无效数据架构');
+
+        // 构建当前已存在标题的哈希集合 (标准小写去重)
+        const existingTitleSet = new Set(
+          points.map(p => (p.title || '').trim().toLowerCase())
+        );
+
+        let addedCount = 0;
+        let skippedCount = 0;
+        let invalidCount = 0;
+
+        incoming.forEach(p => {
+          if (!p || typeof p !== 'object') {
+            invalidCount++;
+            return;
+          }
+
+          const rawTitle = String(p.title || '').trim();
+          if (!rawTitle) {
+            invalidCount++;
+            return;
+          }
+
+          const normalizedTitle = rawTitle.toLowerCase();
+          if (existingTitleSet.has(normalizedTitle)) {
+            skippedCount++;
+          } else {
+            const newCard = {
+              id: p.id || uid(),
+              category: String(p.category || ''),
+              title: rawTitle,
+              content: String(p.content || ''),
+              starred: !!p.starred
+            };
+            points.push(newCard);
+            pool.push(newCard.id);
+            existingTitleSet.add(normalizedTitle);
+            addedCount++;
+          }
+        });
+
+        if (d.theme) applyTheme(d.theme);
+
+        syncPool(false);
+        updateCategoryOptions();
+        renderList();
+        renderStats();
+
+        await saveDataToKV();
+
+        // 渲染并展示结果详情弹窗
+        $('#resAddedCount').textContent = addedCount;
+        $('#resSkippedCount').textContent = skippedCount;
+        $('#resInvalidCount').textContent = invalidCount;
+
+        openOverlay();
+        $('#importResultDialog').classList.add('show');
+
+      } catch (err) {
+        toast('导入失败：JSON 格式不正确');
+      }
+    };
+    r.readAsText(f);
+    e.target.value = '';
   };
 
   $('#clearAllBtn').onclick=()=>{
