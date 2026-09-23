@@ -570,9 +570,9 @@ button{cursor:pointer}
 <script>
 (() => {
   const defaultPoints=[
-    {id:uid(),category:'HTTP, 网络',title:'HTTP **200** 状态码代表什么？',content:'**请求成功**。表示服务器已成功处理了请求。\\n\\n常见场景：\\n- \`GET\` 请求返回了资源\\n- \`POST\` 请求成功提交', starred: true},
+    {id:uid(),category:'HTTP, 网络',title:'HTTP **200** 状态码代表什么？',content:'**请求成功**。表示服务器已成功处理了请求。\\n\\n常见场景：\\n- \\x60GET\\x60 请求返回了资源\\n- \\x60POST\\x60 请求成功提交', starred: true},
     {id:uid(),category:'网络, TCP',title:'TCP 三次握手的过程？',content:'1. **SYN**: 客户端发送连接请求\\n2. **SYN-ACK**: 服务端确认并回应\\n3. **ACK**: 客户端确认，连接建立', starred: false},
-    {id:uid(),category:'JS, 前端',title:'使用 \`async/await\` 的优势？',content:'* 消除回调地狱（Callback Hell）\\n* 代码逻辑呈同步书写样式，可读性更高\\n* 可使用标准的 \`try/catch\` 捕获异步异常', starred: false}
+    {id:uid(),category:'JS, 前端',title:'使用 \\x60async/await\\x60 的优势？',content:'* 消除回调地狱（Callback Hell）\\n* 代码逻辑呈同步书写样式，可读性更高\\n* 可使用标准的 \\x60try/catch\\x60 捕获异步异常', starred: false}
   ];
 
   const PRESET_THEMES = [
@@ -627,9 +627,9 @@ button{cursor:pointer}
           if (node.parentNode && node.parentNode.tagName.toLowerCase() === 'pre') {
             return childText;
           }
-          return childText.trim() ? '`' + childText.trim() + '`' : '';
+          return childText.trim() ? '\\x60' + childText.trim() + '\\x60' : '';
         case 'pre':
-          return '\\n\\n\`\`\`\\n' + childText.trim() + '\\n\`\`\`\\n\\n';
+          return '\\n\\n\\x60\\x60\\x60\\n' + childText.trim() + '\\n\\x60\\x60\\x60\\n\\n';
         case 'p':
         case 'div':
           return '\\n\\n' + childText.trim() + '\\n\\n';
@@ -768,7 +768,7 @@ button{cursor:pointer}
 
       if (key === 'b') { prefix = '**'; suffix = '**'; }
       else if (key === 'i') { prefix = '*'; suffix = '*'; }
-      else if (key === 'k') { prefix = '`'; suffix = '`'; }
+      else if (key === 'k') { prefix = '\\x60'; suffix = '\\x60'; }
       else { return; }
 
       e.preventDefault();
