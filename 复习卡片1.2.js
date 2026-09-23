@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker + KV 架构的复习卡片应用
- * 特性：统一高质感毛玻璃 UI + 自适应文本编辑 + 调色盘 + 带去重与详情弹窗的 JSON 导入
+ * 特性：统一高质感毛玻璃 UI + 富文本粘贴转 Markdown + 自适应文本编辑 + 调色盘 + 带去重与详情弹窗的 JSON 导入
  */
 
 export default {
@@ -512,7 +512,7 @@ button{cursor:pointer}
       <input type="text" id="inputTitle" placeholder="请输入问题描述..." />
     </div>
     <div class="form-group">
-      <label>答案 <span class="tip">(快捷键: Ctrl+B 加粗, Ctrl+I 斜体)</span></label>
+      <label>答案 <span class="tip">(支持粘贴带格式富文本，将自动转为 Markdown)</span></label>
       <textarea id="inputContent" rows="6" placeholder="请输入详细答案，支持 Markdown 格式..."></textarea>
     </div>
   </div>
@@ -597,6 +597,76 @@ button{cursor:pointer}
   function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove('show'),1800)}
   function status(type,text){const el=$('#syncState');el.innerHTML='<i class="dot '+type+'"></i><span>'+text+'</span>'}
 
+  /**
+   * HTML 富文本转 Markdown 格式转换器
+   */
+  function htmlToMarkdown(htmlStr) {
+    if (!htmlStr) return '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlStr, 'text/html');
+
+    function walkNode(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.nodeValue;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return '';
+      }
+
+      let childText = Array.from(node.childNodes).map(walkNode).join('');
+      const tag = node.tagName.toLowerCase();
+
+      switch (tag) {
+        case 'b':
+        case 'strong':
+          return childText.trim() ? '**' + childText.trim() + '**' : '';
+        case 'i':
+        case 'em':
+          return childText.trim() ? '*' + childText.trim() + '*' : '';
+        case 'code':
+          if (node.parentNode && node.parentNode.tagName.toLowerCase() === 'pre') {
+            return childText;
+          }
+          return childText.trim() ? '`' + childText.trim() + '`' : '';
+        case 'pre':
+          return '\\n\\n\`\`\`\\n' + childText.trim() + '\\n\`\`\`\\n\\n';
+        case 'p':
+        case 'div':
+          return '\\n\\n' + childText.trim() + '\\n\\n';
+        case 'br':
+          return '\\n';
+        case 'h1':
+          return '\\n\\n# ' + childText.trim() + '\\n\\n';
+        case 'h2':
+          return '\\n\\n## ' + childText.trim() + '\\n\\n';
+        case 'h3':
+          return '\\n\\n### ' + childText.trim() + '\\n\\n';
+        case 'h4':
+        case 'h5':
+        case 'h6':
+          return '\\n\\n#### ' + childText.trim() + '\\n\\n';
+        case 'li':
+          return '\\n- ' + childText.trim();
+        case 'ul':
+        case 'ol':
+          return '\\n' + childText + '\\n';
+        case 'blockquote':
+          return '\\n\\n> ' + childText.trim().replace(/\\n/g, '\\n> ') + '\\n\\n';
+        case 'a':
+          const href = node.getAttribute('href');
+          return href ? '[' + childText.trim() + '](' + href + ')' : childText;
+        default:
+          return childText;
+      }
+    }
+
+    let result = walkNode(doc.body);
+    // 整理连续空行
+    return result
+      .replace(/\\n{3,}/g, '\\n\\n')
+      .trim();
+  }
+
   function applyTheme(themeObj) {
     currentTheme = themeObj;
     document.documentElement.style.setProperty('--bg-gradient', themeObj.bg);
@@ -660,10 +730,35 @@ button{cursor:pointer}
     applyTheme(currentTheme);
   };
 
-  function attachMarkdownShortcuts(inputEl) {
-    if (!inputEl || inputEl.dataset.mdShortcutAttached) return;
-    inputEl.dataset.mdShortcutAttached = 'true';
+  // 绑定 Markdown 快捷键与 HTML 富文本粘贴转换
+  function attachRichTextAndShortcuts(inputEl) {
+    if (!inputEl || inputEl.dataset.richTextAttached) return;
+    inputEl.dataset.richTextAttached = 'true';
 
+    // 捕获粘贴事件 (Paste Event)
+    inputEl.addEventListener('paste', (e) => {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+
+      const htmlData = clipboardData.getData('text/html');
+      if (htmlData && htmlData.trim()) {
+        e.preventDefault();
+        const markdownText = htmlToMarkdown(htmlData);
+
+        const start = inputEl.selectionStart;
+        const end = inputEl.selectionEnd;
+        const val = inputEl.value;
+
+        inputEl.value = val.substring(0, start) + markdownText + val.substring(end);
+        inputEl.selectionStart = inputEl.selectionEnd = start + markdownText.length;
+
+        // 若为自适应 textarea，触发 input 事件更新高度
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        toast('已自动将带格式富文本转换为 Markdown');
+      }
+    });
+
+    // 快捷键 Ctrl+B, Ctrl+I, Ctrl+K
     inputEl.addEventListener('keydown', (e) => {
       const isCmdOrCtrl = e.ctrlKey || e.metaKey;
       if (!isCmdOrCtrl) return;
@@ -673,7 +768,7 @@ button{cursor:pointer}
 
       if (key === 'b') { prefix = '**'; suffix = '**'; }
       else if (key === 'i') { prefix = '*'; suffix = '*'; }
-      else if (key === 'k') { prefix = '\\x60'; suffix = '\\x60'; }
+      else if (key === 'k') { prefix = '`'; suffix = '`'; }
       else { return; }
 
       e.preventDefault();
@@ -938,7 +1033,7 @@ button{cursor:pointer}
     containerEl.innerHTML = '';
     containerEl.appendChild(textarea);
     
-    attachMarkdownShortcuts(textarea);
+    attachRichTextAndShortcuts(textarea);
     autoResize();
     textarea.focus();
 
@@ -1111,9 +1206,9 @@ button{cursor:pointer}
     $('#itemDialog').classList.add('show');
   }
 
-  attachMarkdownShortcuts($('#inputTitle'));
-  attachMarkdownShortcuts($('#inputContent'));
-  attachMarkdownShortcuts($('#bulkInput'));
+  attachRichTextAndShortcuts($('#inputTitle'));
+  attachRichTextAndShortcuts($('#inputContent'));
+  attachRichTextAndShortcuts($('#bulkInput'));
 
   $('#addModalBtn').onclick = () => openDialog();
   $('#closeDialogBtn').onclick = closeOverlay;
@@ -1227,7 +1322,6 @@ button{cursor:pointer}
         const incoming = Array.isArray(d) ? d : d.points;
         if (!Array.isArray(incoming)) throw new Error('无效数据架构');
 
-        // 构建当前已存在标题的哈希集合 (标准小写去重)
         const existingTitleSet = new Set(
           points.map(p => (p.title || '').trim().toLowerCase())
         );
@@ -1275,7 +1369,6 @@ button{cursor:pointer}
 
         await saveDataToKV();
 
-        // 渲染并展示结果详情弹窗
         $('#resAddedCount').textContent = addedCount;
         $('#resSkippedCount').textContent = skippedCount;
         $('#resInvalidCount').textContent = invalidCount;
