@@ -1,6 +1,6 @@
 /**
- * Cloudflare Worker + KV 架构的复习卡片应用
- * 特性：统一高质感毛玻璃 UI + 富文本粘贴转 Markdown + 自适应文本编辑 + 调色盘 + 带去重与详情弹窗的 JSON 导入 + 分类自动检索补全
+ * Cloudflare Worker + KV 架构的复习卡片应用（单文件版）
+ * 使用 String.raw 避免模板字符串转义陷阱。
  */
 
 export default {
@@ -18,7 +18,7 @@ export default {
       });
     }
 
-    // 1. API 接口：获取数据 (GET /api/data)
+    // 1. GET /api/data
     if (url.pathname === '/api/data' && request.method === 'GET') {
       try {
         const rawData = await env.REVIEW_KV.get('user_review_data');
@@ -35,7 +35,7 @@ export default {
       }
     }
 
-    // 2. API 接口：保存数据 (POST /api/data)
+    // 2. POST /api/data
     if (url.pathname === '/api/data' && request.method === 'POST') {
       try {
         const body = await request.text();
@@ -49,7 +49,7 @@ export default {
       }
     }
 
-    // 3. 根目录 / ：返回 HTML 页面
+    // 3. 页面
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return new Response(HTML_CONTENT, {
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
@@ -60,15 +60,15 @@ export default {
   }
 };
 
-// ==================== 前端 HTML / CSS / JS 模板 ====================
-const HTML_CONTENT = `<!doctype html>
+// ==================== 前端 HTML / CSS / JS ====================
+// 注意：整段使用 String.raw，反引号一律写成 \x60，换行符写 \n 即可。
+const HTML_CONTENT = String.raw`<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#eef1f5">
 <title>复习卡片 · Cloudflare KV</title>
-<!-- 引入 Markdown 渲染库 Marked -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
 :root{
@@ -324,7 +324,6 @@ to{opacity:1;transform:none}}
 .dialog-body { display: flex; flex-direction: column; gap: 16px; }
 .dialog-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
-/* 导入结果详情统计卡片 */
 .import-result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 6px; }
 .import-res-item { background: rgba(255,255,255,0.6); padding: 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.8); text-align: center; }
 .import-res-item .num { font-size: 20px; font-weight: 800; }
@@ -445,10 +444,8 @@ to{opacity:1;transform:none}}
   </main>
 </div>
 
-<!-- 全局遮罩层 -->
 <div class="modal-layer" id="overlay"></div>
 
-<!-- 双击 Logo 调色盘 Modal -->
 <div class="theme-palette-modal" id="themeModal">
   <div class="dialog-head">
     <h3>🎨 氛围色调与毛玻璃设置</h3>
@@ -474,10 +471,8 @@ to{opacity:1;transform:none}}
   </div>
 </div>
 
-<!-- 卡片双击展开 Modal -->
 <div class="card-expanded-modal" id="expandedCardModal"></div>
 
-<!-- JSON 导入结果详情 Dialog -->
 <div class="dialog" id="importResultDialog">
   <div class="dialog-head">
     <h3>📥 JSON 导入结果详情</h3>
@@ -508,7 +503,6 @@ to{opacity:1;transform:none}}
   </div>
 </div>
 
-<!-- 弹窗：添加/编辑题目 -->
 <div class="dialog" id="itemDialog">
   <div class="dialog-head">
     <h3 id="dialogTitle">添加题目</h3>
@@ -535,7 +529,6 @@ to{opacity:1;transform:none}}
   </div>
 </div>
 
-<!-- 侧边抽屉：统计与批量管理 -->
 <aside class="drawer" id="drawer">
   <div class="drawer-head"><h2>复习统计与管理</h2><button class="icon-btn" id="closeDrawerBtn">×</button></div>
   <div class="drawer-body">
@@ -585,7 +578,7 @@ to{opacity:1;transform:none}}
   'use strict';
   const boot = () => {
     try {
-  // 配置 marked 选项：开启 breaks 可将换行符渲染为 <br>
+  // 配置 marked 选项：开启 breaks 可将单个换行符渲染为 <br>
   if (typeof marked !== 'undefined') {
     marked.setOptions({
       breaks: true
@@ -593,9 +586,9 @@ to{opacity:1;transform:none}}
   }
 
   const defaultPoints=[
-    {id:uid(),category:'HTTP, 网络',title:'HTTP **200** 状态码代表什么？',content:'**请求成功**。表示服务器已成功处理了请求。\\n\\n常见场景：\\n- \\x60GET\\x60 请求返回了资源\\n- \\x60POST\\x60 请求成功提交', starred: true},
-    {id:uid(),category:'网络, TCP',title:'TCP 三次握手的过程？',content:'1. **SYN**: 客户端发送连接请求\\n2. **SYN-ACK**: 服务端确认并回应\\n3. **ACK**: 客户端确认，连接建立', starred: false},
-    {id:uid(),category:'JS, 前端',title:'使用 \\x60async/await\\x60 的优势？',content:'* 消除回调地狱（Callback Hell）\\n* 代码逻辑呈同步书写样式，可读性更高\\n* 可使用标准的 \\x60try/catch\\x60 捕获异步异常', starred: false}
+    {id:uid(),category:'HTTP, 网络',title:'HTTP **200** 状态码代表什么？',content:'**请求成功**。表示服务器已成功处理了请求。\n\n常见场景：\n- \x60GET\x60 请求返回了资源\n- \x60POST\x60 请求成功提交', starred: true},
+    {id:uid(),category:'网络, TCP',title:'TCP 三次握手的过程？',content:'1. **SYN**: 客户端发送连接请求\n2. **SYN-ACK**: 服务端确认并回应\n3. **ACK**: 客户端确认，连接建立', starred: false},
+    {id:uid(),category:'JS, 前端',title:'使用 \x60async/await\x60 的优势？',content:'* 消除回调地狱（Callback Hell）\n* 代码逻辑呈同步书写样式，可读性更高\n* 可使用标准的 \x60try/catch\x60 捕获异步异常', starred: false}
   ];
 
   const PRESET_THEMES = [
@@ -650,31 +643,31 @@ to{opacity:1;transform:none}}
           if (node.parentNode && node.parentNode.tagName.toLowerCase() === 'pre') {
             return childText;
           }
-          return childText.trim() ? '\\x60' + childText.trim() + '\\x60' : '';
+          return childText.trim() ? '\x60' + childText.trim() + '\x60' : '';
         case 'pre':
-          return '\\n\\n\\x60\\x60\\x60\\n' + childText.trim() + '\\n\\x60\\x60\\x60\\n\\n';
+          return '\n\n\x60\x60\x60\n' + childText.trim() + '\n\x60\x60\x60\n\n';
         case 'p':
         case 'div':
-          return '\\n\\n' + childText.trim() + '\\n\\n';
+          return '\n\n' + childText.trim() + '\n\n';
         case 'br':
-          return '\\n';
+          return '\n';
         case 'h1':
-          return '\\n\\n# ' + childText.trim() + '\\n\\n';
+          return '\n\n# ' + childText.trim() + '\n\n';
         case 'h2':
-          return '\\n\\n## ' + childText.trim() + '\\n\\n';
+          return '\n\n## ' + childText.trim() + '\n\n';
         case 'h3':
-          return '\\n\\n### ' + childText.trim() + '\\n\\n';
+          return '\n\n### ' + childText.trim() + '\n\n';
         case 'h4':
         case 'h5':
         case 'h6':
-          return '\\n\\n#### ' + childText.trim() + '\\n\\n';
+          return '\n\n#### ' + childText.trim() + '\n\n';
         case 'li':
-          return '\\n- ' + childText.trim();
+          return '\n- ' + childText.trim();
         case 'ul':
         case 'ol':
-          return '\\n' + childText + '\\n';
+          return '\n' + childText + '\n';
         case 'blockquote':
-          return '\\n\\n> ' + childText.trim().replace(/\\n/g, '\\n> ') + '\\n\\n';
+          return '\n\n> ' + childText.trim().replace(/\n/g, '\n> ') + '\n\n';
         case 'a':
           const href = node.getAttribute('href');
           return href ? '[' + childText.trim() + '](' + href + ')' : childText;
@@ -686,7 +679,7 @@ to{opacity:1;transform:none}}
     let result = walkNode(doc.body);
     // 整理连续空行
     return result
-      .replace(/\\n{3,}/g, '\\n\\n')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
   }
 
@@ -775,7 +768,6 @@ to{opacity:1;transform:none}}
         inputEl.value = val.substring(0, start) + markdownText + val.substring(end);
         inputEl.selectionStart = inputEl.selectionEnd = start + markdownText.length;
 
-        // 若为自适应 textarea，触发 input 事件更新高度
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
         toast('已自动将带格式富文本转换为 Markdown');
       }
@@ -791,7 +783,7 @@ to{opacity:1;transform:none}}
 
       if (key === 'b') { prefix = '**'; suffix = '**'; }
       else if (key === 'i') { prefix = '*'; suffix = '*'; }
-      else if (key === 'k') { prefix = '\\x60'; suffix = '\\x60'; }
+      else if (key === 'k') { prefix = '\x60'; suffix = '\x60'; }
       else { return; }
 
       e.preventDefault();
@@ -832,20 +824,16 @@ to{opacity:1;transform:none}}
       parseCategories(p.category).forEach(c => catSet.add(c));
     });
 
-    // 1. 更新顶部筛选下拉框
     select.innerHTML = '<option value="">全部分类</option><option value="__STARRED__">⭐ 仅看收藏</option>';
     
-    // 2. 更新添加/编辑弹窗的 datalist 自动补全菜单
     if (datalist) datalist.innerHTML = '';
 
     catSet.forEach(cat => {
-      // 填充筛选框
       const opt = document.createElement('option');
       opt.value = cat;
       opt.textContent = cat;
       select.appendChild(opt);
 
-      // 填充 datalist
       if (datalist) {
         const dlOpt = document.createElement('option');
         dlOpt.value = cat;
@@ -1186,8 +1174,8 @@ to{opacity:1;transform:none}}
 
     filtered.forEach(p=>{
       const el=document.createElement('div');el.className='item';
-      const cleanTitle = (p.title || '').replace(/[#*_\`]/g, '').replace(/\\n+/g, ' ');
-      const cleanContent = (p.content || '').replace(/[#*_\`]/g, '').replace(/\\n+/g, ' ');
+      const cleanTitle = (p.title || '').replace(/[#*_\x60]/g, '').replace(/\n+/g, ' ');
+      const cleanContent = (p.content || '').replace(/[#*_\x60]/g, '').replace(/\n+/g, ' ');
       
       const cats = parseCategories(p.category);
       const tagsHtml = cats.map(c => '<span class="item-tag">' + c + '</span>').join('');
@@ -1225,7 +1213,7 @@ to{opacity:1;transform:none}}
   
   function openDialog(id = null){
     editingId = id;
-    updateCategoryOptions(); // 打开弹窗时刷新一次分类列表
+    updateCategoryOptions();
     if(id) {
       const p = points.find(x => x.id === id);
       if(p) {
@@ -1301,7 +1289,7 @@ to{opacity:1;transform:none}}
   $('#bulkAddBtn').onclick=()=>{
     const text=$('#bulkInput').value.trim();if(!text){toast('请输入内容');return}
     let n=0;
-    text.split(/\\n+/).map(x=>x.trim()).filter(Boolean).forEach(line=>{
+    text.split(/\n+/).map(x=>x.trim()).filter(Boolean).forEach(line=>{
       const parts = line.split('|').map(s=>s.trim());
       let category = '', title = '', content = '';
       if(parts.length >= 3) {
@@ -1349,7 +1337,6 @@ to{opacity:1;transform:none}}
 
   $('#importBtn').onclick=()=>$('#importFile').click();
 
-  // JSON 导入处理：依据标题去重，默认追加添加，弹出结果详情 Modal
   $('#importFile').onchange = e => {
     const f = e.target.files[0];
     if (!f) return;
