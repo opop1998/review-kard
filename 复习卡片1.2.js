@@ -1,11 +1,22 @@
 /**
  * Cloudflare Worker + KV 架构的复习卡片应用
- * 特性：统一高质感毛玻璃 UI + 富文本粘贴转 Markdown + 自适应文本编辑 + 调色盘 + 带去重与详情弹窗的 JSON 导入
+ * 特性：统一高质感毛玻璃 UI + 富文本粘贴转 Markdown + 自适应文本编辑 + 调色盘 + 带去重与详情弹窗的 JSON 导入 + 分类自动检索补全
  */
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    // 0. CORS / 预检
+    if (url.pathname === '/api/data' && request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
+      });
+    }
 
     // 1. API 接口：获取数据 (GET /api/data)
     if (url.pathname === '/api/data' && request.method === 'GET') {
@@ -20,7 +31,7 @@ export default {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: err.message || 'KV 读取失败' }), { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
     }
 
@@ -34,7 +45,7 @@ export default {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 400 });
+        return new Response(JSON.stringify({ error: err.message || '请求数据无效' }), { status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
       }
     }
 
@@ -184,7 +195,8 @@ button{cursor:pointer}
 }
 .card:hover{transform:translateY(-2px);box-shadow:0 24px 50px rgba(15, 23, 42, 0.12)}
 .card.small{width:280px;height:340px;padding:20px}
-@keyframes appear{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes appear{from{opacity:0;transform:translateY(12px) scale(.98)}
+to{opacity:1;transform:none}}
 
 .star-btn{
   position:absolute;top:22px;left:24px;font-size:20px;color:#cbd5e1;
@@ -326,7 +338,7 @@ button{cursor:pointer}
   padding: 10px 14px; outline: none; font-size: 13px; color: var(--text); transition: all .15s ease;
 }
 .form-group input:focus, .form-group textarea:focus {
-  background: rgba(255,255,255,.9); border-color: rgba(37,99,235,0.5); box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+  background:rgba(255,255,255,.9); border-color: rgba(37,99,235,0.5); box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
 }
 .form-group textarea { resize: vertical; }
 
@@ -504,8 +516,9 @@ button{cursor:pointer}
   </div>
   <div class="dialog-body">
     <div class="form-group">
-      <label>分类 <span class="tip">(支持逗号分割，如：网络, HTTP)</span></label>
-      <input type="text" id="inputCategory" placeholder="如：HTTP, 计算机网络..." />
+      <label>分类 <span class="tip">(支持检索/选择已存分类，逗号可分割多标签)</span></label>
+      <input type="text" id="inputCategory" list="existingCategoriesList" placeholder="选择或直接输入分类，如：HTTP, 计算机网络..." autocomplete="off" />
+      <datalist id="existingCategoriesList"></datalist>
     </div>
     <div class="form-group">
       <label>问题 <span class="tip">(快捷键: Ctrl+B 加粗, Ctrl+I 斜体)</span></label>
@@ -569,6 +582,16 @@ button{cursor:pointer}
 
 <script>
 (() => {
+  'use strict';
+  const boot = () => {
+    try {
+  // 配置 marked 选项：开启 breaks 可将换行符渲染为 <br>
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({
+      breaks: true
+    });
+  }
+
   const defaultPoints=[
     {id:uid(),category:'HTTP, 网络',title:'HTTP **200** 状态码代表什么？',content:'**请求成功**。表示服务器已成功处理了请求。\\n\\n常见场景：\\n- \\x60GET\\x60 请求返回了资源\\n- \\x60POST\\x60 请求成功提交', starred: true},
     {id:uid(),category:'网络, TCP',title:'TCP 三次握手的过程？',content:'1. **SYN**: 客户端发送连接请求\\n2. **SYN-ACK**: 服务端确认并回应\\n3. **ACK**: 客户端确认，连接建立', starred: false},
@@ -801,6 +824,7 @@ button{cursor:pointer}
 
   function updateCategoryOptions() {
     const select = $('#mainCategoryFilter');
+    const datalist = $('#existingCategoriesList');
     const currentVal = select.value;
     
     const catSet = new Set();
@@ -808,12 +832,25 @@ button{cursor:pointer}
       parseCategories(p.category).forEach(c => catSet.add(c));
     });
 
+    // 1. 更新顶部筛选下拉框
     select.innerHTML = '<option value="">全部分类</option><option value="__STARRED__">⭐ 仅看收藏</option>';
+    
+    // 2. 更新添加/编辑弹窗的 datalist 自动补全菜单
+    if (datalist) datalist.innerHTML = '';
+
     catSet.forEach(cat => {
+      // 填充筛选框
       const opt = document.createElement('option');
       opt.value = cat;
       opt.textContent = cat;
       select.appendChild(opt);
+
+      // 填充 datalist
+      if (datalist) {
+        const dlOpt = document.createElement('option');
+        dlOpt.value = cat;
+        datalist.appendChild(dlOpt);
+      }
     });
 
     select.value = currentVal;
@@ -936,7 +973,7 @@ button{cursor:pointer}
       let activeCandidates = candidates.filter(item => pool.includes(item.id));
       if(!activeCandidates.length){
         candidates.forEach(item => { if(!pool.includes(item.id)) pool.push(item.id); });
-        activeCandidates = candidates;
+                activeCandidates = candidates;
         toast('该分类下本轮已抽完，自动重置');
       }
       const chosen = weightedRandomSelect(activeCandidates);
@@ -982,19 +1019,19 @@ button{cursor:pointer}
       '</div>' +
       '<button class="reveal" type="button">显示答案</button>';
 
+    const revealBtn = el.querySelector('.reveal');
+    const answerEl = el.querySelector('.answer');
+    revealBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const hidden = answerEl.style.display === 'none';
+      answerEl.style.display = hidden ? 'flex' : 'none';
+      revealBtn.textContent = hidden ? '隐藏答案' : '显示答案';
+    });
+
     const starBtn = el.querySelector('.star-btn');
     starBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleStar(p.id, starBtn);
-    });
-
-    const revealBtn = el.querySelector('.reveal');
-    revealBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const a = el.querySelector('.answer');
-      const isHidden = a.style.display === 'none';
-      a.style.display = isHidden ? 'flex' : 'none';
-      revealBtn.textContent = isHidden ? '隐藏答案' : '显示答案';
     });
 
     el.addEventListener('dblclick', (e) => {
@@ -1155,7 +1192,7 @@ button{cursor:pointer}
       const cats = parseCategories(p.category);
       const tagsHtml = cats.map(c => '<span class="item-tag">' + c + '</span>').join('');
       const starIcon = p.starred ? '<span style="color:var(--star-color);margin-right:4px;">★</span>' : '';
-
+      
       el.innerHTML = '<div class="item-main">' +
           '<div class="item-header">' +
             starIcon + tagsHtml +
@@ -1188,6 +1225,7 @@ button{cursor:pointer}
   
   function openDialog(id = null){
     editingId = id;
+    updateCategoryOptions(); // 打开弹窗时刷新一次分类列表
     if(id) {
       const p = points.find(x => x.id === id);
       if(p) {
@@ -1392,8 +1430,24 @@ button{cursor:pointer}
     toast('题库已清空');
   };
 
-  loadDataFromKV();
-  updateTimerDisplay();
+    loadDataFromKV();
+    updateTimerDisplay();
+    } catch (err) {
+      console.error('[ReviewCards] 初始化失败:', err);
+      const msg = err && err.message ? err.message : String(err);
+      const t = document.querySelector('#toast');
+      if (t) {
+        t.textContent = '页面初始化失败：' + msg;
+        t.classList.add('show');
+      }
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
+  } else {
+    boot();
+  }
 })();
 </script>
 </body>
