@@ -155,7 +155,7 @@ button{cursor:pointer}
 .toggle-switch input:checked + .toggle-track{background:#1e293b}
 .toggle-switch input:checked + .toggle-track::after{transform:translateX(16px)}
 
-.actions{display:flex;gap:8px;align-items:center}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;row-gap:8px}
 .icon-btn,.btn{
   border:1px solid var(--glass-border);background:rgba(255,255,255,.6);color:var(--text);
   border-radius:14px;padding:8px 16px;font-size:13px;font-weight:550;transition:.2s ease;
@@ -255,7 +255,11 @@ to{opacity:1;transform:none}}
 }
 .reveal:hover{background:rgba(255,255,255,.9);transform:translateY(-1px)}
 
-.bottom-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+.draw-group{
+  display:flex;gap:8px;align-items:center;
+  padding-right:12px;margin-right:2px;border-right:1px solid rgba(15,23,42,.1);
+}
+.draw-group .btn{white-space:nowrap}
 
 .modal-layer{
   position:fixed;inset:0;background:rgba(15,23,42,.25);backdrop-filter:blur(10px);
@@ -362,9 +366,11 @@ to{opacity:1;transform:none}}
 .item {
   width: 100%; padding: 14px 16px; border: 1px solid var(--glass-border); border-radius: 18px;
   background: rgba(255,255,255,.45); display: flex; gap: 12px; align-items: center;
-  justify-content: space-between; box-sizing: border-box; transition: background .15s;
+  justify-content: space-between; box-sizing: border-box;
+  transition: background .15s, transform .15s, box-shadow .15s;
+  cursor: pointer; user-select: none;
 }
-.item:hover { background: rgba(255,255,255,.75); }
+.item:hover { background: rgba(255,255,255,.75); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.06); }
 .item-main { min-width: 0; flex: 1; }
 .item-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; flex-wrap:wrap; }
 .item-tag { font-size: 10px; font-weight: 700; background: rgba(30,41,59,.08); color: #334155; padding: 2px 6px; border-radius: 6px; flex-shrink: 0; }
@@ -390,12 +396,29 @@ to{opacity:1;transform:none}}
   .topbar{flex-direction:column;align-items:stretch;gap:12px}
   .topbar-center{justify-content:space-between}
   .actions{justify-content:flex-end}
+  .draw-group{
+    width:100%;margin-right:0;padding-right:0;border-right:none;
+  }
+  .draw-group .btn{flex:1;padding:11px 16px;font-size:14px}
 }
 @media(max-width:760px){
   .app{padding:12px 12px 45px}.topbar{padding:14px 16px;border-radius:20px}
   .sync{display:none}
-  .study{padding:16px;min-height:470px;border-radius:22px}.cards{min-height:370px}
-  .card{width:min(400px,92vw);height:460px}.card.small{width:min(44vw,190px);height:280px}
+  .study{padding:16px;min-height:470px;border-radius:22px}.cards{min-height:370px;gap:16px}
+  
+  /* 移动端强制卡片占满全宽，取消多张小卡并排模式 */
+  .card, .card.small {
+    width: 100%;
+    height: 460px;
+    padding: 24px 20px 20px;
+  }
+  
+  /* 还原小卡内部字号和图标位置，因为已变为全宽 */
+  .card.small .question { font-size: 17px; }
+  .card.small .answer-content { font-size: 14px; }
+  .card.small .star-btn { top: 22px; left: 24px; font-size: 20px; }
+  .card.small .tags-container { top: 22px; right: 24px; }
+  
   .preset-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
@@ -425,10 +448,14 @@ to{opacity:1;transform:none}}
     </div>
 
     <div class="actions">
+      <div class="draw-group">
+        <button class="btn primary" id="drawOneBtn">抽一张</button>
+        <button class="btn" id="drawFiveBtn">抽五张</button>
+      </div>
       <div class="sync" id="syncState" title="点击手动同步数据"><i class="dot ok"></i><span>Cloudflare KV</span></div>
       <button class="btn" id="manualSyncBtn">↻ 同步</button>
       <button class="btn" id="resetPoolBtn">重置本轮</button>
-      <button class="btn primary" id="addModalBtn">+ 添加题目</button>
+      <button class="btn" id="addModalBtn">+ 添加题目</button>
       <button class="icon-btn" id="manageBtn" title="题库管理与统计">☰</button>
     </div>
   </header>
@@ -436,10 +463,6 @@ to{opacity:1;transform:none}}
   <main class="study glass">
     <div class="cards" id="cardsWrap">
       <div class="empty"><div class="big">✦</div><h2>准备开始复习</h2><p>抽一张卡，先在脑中思考，再点“显示答案”查看。<br><small style="opacity:.7">提示：双击左上角 Logo 可自定义毛玻璃配色与背景氛围</small></p></div>
-    </div>
-    <div class="bottom-actions">
-      <button class="btn primary" id="drawOneBtn">抽一张</button>
-      <button class="btn" id="drawFiveBtn">抽五张</button>
     </div>
   </main>
 </div>
@@ -558,7 +581,9 @@ to{opacity:1;transform:none}}
     </section>
 
     <section class="section">
-      <div class="section-title">题目列表 · <span id="countLabel">0</span></div>
+      <div class="section-title">题目列表 · <span id="countLabel">0</span>
+        <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:6px;">（双击条目查看大卡片）</span>
+      </div>
       <div class="search-box">
         <input type="text" id="searchInput" placeholder="🔍 搜索问题、答案或分类..." />
       </div>
@@ -607,6 +632,7 @@ to{opacity:1;transform:none}}
   let seen = new Set();
   let draws = 0;
   let editingId = null;
+  let returnToDrawer = false; // 从侧边栏打开大卡片时，关闭后保留侧边栏
 
   const $=s=>document.querySelector(s);
   function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
@@ -1086,6 +1112,7 @@ to{opacity:1;transform:none}}
 
   function openExpandedCard(p) {
     const modal = $('#expandedCardModal');
+    returnToDrawer = $('#drawer').classList.contains('open');
     const cats = parseCategories(p.category);
     const tagsHtml = cats.map(c => '<span class="tag-badge">' + c + '</span>').join('');
 
@@ -1110,7 +1137,7 @@ to{opacity:1;transform:none}}
     modal.querySelector('.star-btn').onclick = (e) => {
       toggleStar(p.id, e.target);
     };
-    modal.querySelector('#closeExpandBtn').onclick = closeOverlay;
+    modal.querySelector('#closeExpandBtn').onclick = closeExpandedCard;
 
     const expQ = modal.querySelector('.question');
     expQ.ondblclick = (e) => { e.stopPropagation(); enableInlineEdit(expQ, p, 'title'); };
@@ -1193,6 +1220,19 @@ to{opacity:1;transform:none}}
           '<button data-a="edit" data-id="' + p.id + '">编辑</button>' +
           '<button data-a="del" data-id="' + p.id + '">删除</button>' +
         '</div>';
+      el.title = '双击查看大卡片';
+      el.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.item-ops')) return;
+        const target = points.find(x => x.id === p.id);
+        if (target) openExpandedCard(target);
+      });
+      // 触屏设备没有双击，改为单击正文区域打开
+      if (window.matchMedia('(hover: none)').matches) {
+        el.querySelector('.item-main').addEventListener('click', () => {
+          const target = points.find(x => x.id === p.id);
+          if (target) openExpandedCard(target);
+        });
+      }
       list.appendChild(el);
     });
   }
@@ -1207,6 +1247,15 @@ to{opacity:1;transform:none}}
     $('#themeModal').classList.remove('show');
     $('#expandedCardModal').classList.remove('show');
     $('#importResultDialog').classList.remove('show');
+  }
+  // 关闭大卡片：若它是由侧边栏列表打开的，只关卡片、保留侧边栏
+  function closeExpandedCard(){
+    $('#expandedCardModal').classList.remove('show');
+    if(returnToDrawer){
+      returnToDrawer = false;
+      return;
+    }
+    closeOverlay();
   }
 
   function openDrawer(){ openOverlay(); $('#drawer').classList.add('open'); }
@@ -1241,7 +1290,10 @@ to{opacity:1;transform:none}}
   $('#cancelDialogBtn').onclick = closeOverlay;
   $('#manageBtn').onclick = openDrawer;
   $('#closeDrawerBtn').onclick = closeOverlay;
-  $('#overlay').onclick = closeOverlay;
+  $('#overlay').onclick = () => {
+    if($('#expandedCardModal').classList.contains('show')){ closeExpandedCard(); return; }
+    closeOverlay();
+  };
   $('#closeImportResultBtn').onclick = closeOverlay;
   $('#confirmImportResultBtn').onclick = closeOverlay;
 
