@@ -8,7 +8,7 @@ export default {
     const url = new URL(request.url);
 
     // 0. CORS / 预检
-    if (url.pathname === '/api/data' && request.method === 'OPTIONS') {
+    if ((url.pathname === '/api/data' || url.pathname === '/api/verify') && request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
@@ -18,12 +18,36 @@ export default {
       });
     }
 
+    // 0.5 POST /api/verify —— 危险操作验证码校验
+    // 验证码来自运行变量 k（wrangler 的 vars / 控制台「运行时变量和密钥」），
+    // 不写进前端源码，改值不需要改代码，页面源码里也看不到。
+    if (url.pathname === '/api/verify' && request.method === 'POST') {
+      const jsonHeaders = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' };
+      let code = '';
+      try {
+        const body = await request.json();
+        code = String(body && body.code != null ? body.code : '').trim();
+      } catch (err) {
+        return new Response(JSON.stringify({ ok: false, error: '请求格式无效' }), { status: 400, headers: jsonHeaders });
+      }
+      const expected = env && env.k != null ? String(env.k).trim() : '';
+      if (!expected) {
+        return new Response(JSON.stringify({ ok: false, error: '服务端未配置验证变量 k，删除操作已禁用' }), { status: 500, headers: jsonHeaders });
+      }
+      if (code !== expected) {
+        return new Response(JSON.stringify({ ok: false, error: '验证码错误，操作已取消' }), { status: 403, headers: jsonHeaders });
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers: jsonHeaders });
+    }
+
     // 1. GET /api/data
     if (url.pathname === '/api/data' && request.method === 'GET') {
       try {
         const rawData = await env.REVIEW_KV.get('user_review_data');
         if (!rawData) {
-          return new Response(JSON.stringify({ points: [], pool: [], seen: [], draws: 0, theme: null }), {
+          // initialized:false 表示 KV 里从未存过数据，前端据此决定是否写入示例卡片。
+          // 已有数据（哪怕是空题库）不会再被示例数据覆盖。
+          return new Response(JSON.stringify({ points: [], pool: [], seen: [], draws: 0, theme: null, initialized: false }), {
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
           });
         }
@@ -328,6 +352,17 @@ to{opacity:1;transform:none}}
 .dialog-body { display: flex; flex-direction: column; gap: 16px; }
 .dialog-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 
+/* 页面内输入弹窗：层级高于抽屉(21)与大卡片(35) */
+.ask-dialog { z-index: 45; }
+.ask-dialog #askInput {
+  width: 100%; padding: 12px 14px; border-radius: 14px; font-size: 16px;
+  border: 1px solid var(--glass-border); background: rgba(255,255,255,.75);
+  color: var(--text); outline: none; letter-spacing: 1px; box-sizing: border-box;
+}
+.ask-dialog #askInput:focus { border-color: #94a3b8; background: #fff; }
+.btn.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.danger-solid:hover { background: #dc2626; color: #fff; }
+
 .import-result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 6px; }
 .import-res-item { background: rgba(255,255,255,0.6); padding: 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.8); text-align: center; }
 .import-res-item .num { font-size: 20px; font-weight: 800; }
@@ -403,8 +438,13 @@ to{opacity:1;transform:none}}
 }
 @media(max-width:760px){
   .app{padding:12px 12px 45px}.topbar{padding:14px 16px;border-radius:20px}
-  .sync{display:none}
   .study{padding:16px;min-height:470px;border-radius:22px}.cards{min-height:370px;gap:16px}
+
+  /* 窄屏把工具按钮压紧，让同步状态、重置、添加、管理四个挤在同一行 */
+  .actions{gap:6px;row-gap:8px}
+  .actions > .btn{padding:8px 11px;font-size:12px}
+  .actions > .icon-btn{width:36px;height:36px;border-radius:12px}
+  .actions > .sync{padding:6px 10px;font-size:11px}
   
   /* 移动端强制卡片占满全宽，取消多张小卡并排模式 */
   .card, .card.small {
@@ -453,7 +493,6 @@ to{opacity:1;transform:none}}
         <button class="btn" id="drawFiveBtn">抽五张</button>
       </div>
       <div class="sync" id="syncState" title="点击手动同步数据"><i class="dot ok"></i><span>Cloudflare KV</span></div>
-      <button class="btn" id="manualSyncBtn">↻ 同步</button>
       <button class="btn" id="resetPoolBtn">重置本轮</button>
       <button class="btn" id="addModalBtn">+ 添加题目</button>
       <button class="icon-btn" id="manageBtn" title="题库管理与统计">☰</button>
@@ -495,6 +534,22 @@ to{opacity:1;transform:none}}
 </div>
 
 <div class="card-expanded-modal" id="expandedCardModal"></div>
+
+<!-- 页面内输入弹窗：替代原生 prompt（沙箱 iframe / App 内嵌浏览器会屏蔽原生弹窗） -->
+<div class="dialog ask-dialog" id="askDialog">
+  <div class="dialog-head">
+    <h3 id="askTitle">请输入</h3>
+    <button class="icon-btn" id="askCloseBtn">×</button>
+  </div>
+  <div class="dialog-body">
+    <div id="askDesc" style="font-size:13px;color:var(--muted);line-height:1.6;"></div>
+    <input type="text" id="askInput" autocomplete="off" placeholder="" />
+  </div>
+  <div class="dialog-foot">
+    <button class="btn" id="askCancelBtn">取消</button>
+    <button class="btn primary" id="askOkBtn">确定</button>
+  </div>
+</div>
 
 <div class="dialog" id="importResultDialog">
   <div class="dialog-head">
@@ -638,6 +693,87 @@ to{opacity:1;transform:none}}
   function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
   function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove('show'),1800)}
   function status(type,text){const el=$('#syncState');el.innerHTML='<i class="dot '+type+'"></i><span>'+text+'</span>'}
+
+  // ===== 页面内输入弹窗 =====
+  // 不用原生 prompt/confirm：它们在工作台内置预览、App 内嵌浏览器、部分沙箱 iframe 里
+  // 会被静默拦截（点了没反应）。这里自己做弹窗。
+  let askTextResolve = null;
+  function releaseOverlayIfIdle(){
+    const busy = ['#drawer', '#itemDialog', '#themeModal', '#expandedCardModal', '#importResultDialog', '#askDialog']
+      .some(sel => {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        return sel === '#drawer' ? el.classList.contains('open') : el.classList.contains('show');
+      });
+    if (!busy) $('#overlay').classList.remove('show');
+  }
+
+  function askTextDialog(opts){
+    const o = Object.assign({ title: '请输入', desc: '', placeholder: '', mask: false, confirmText: '确定', danger: false }, opts || {});
+    return new Promise(resolve => {
+      askTextResolve = resolve;
+      $('#askTitle').textContent = o.title;
+      const descEl = $('#askDesc');
+      descEl.textContent = o.desc;
+      descEl.style.display = o.desc ? 'block' : 'none';
+
+      const inp = $('#askInput');
+      inp.value = '';
+      inp.type = o.mask ? 'password' : 'text';
+      inp.placeholder = o.placeholder || '';
+      inp.inputMode = o.mask ? 'numeric' : 'text';
+
+      const ok = $('#askOkBtn');
+      ok.textContent = o.confirmText;
+      ok.classList.toggle('danger-solid', !!o.danger);
+      ok.classList.toggle('primary', !o.danger);
+
+      openOverlay();
+      $('#askDialog').classList.add('show');
+      setTimeout(() => inp.focus(), 60);
+    });
+  }
+
+  function closeAskDialog(value){
+    if(!askTextResolve) return;
+    const resolve = askTextResolve;
+    askTextResolve = null;
+    $('#askDialog').classList.remove('show');
+    releaseOverlayIfIdle();
+    resolve(value);
+  }
+
+  // ===== 危险操作验证码 =====
+  // 验证码不写在前端：提交到 /api/verify，由 Worker 用运行变量 env.k 比对。
+  // 想换验证码，改 Cloudflare 的变量 k 即可，不用动代码。
+  async function verifyDangerKey(actionName){
+    const input = await askTextDialog({
+      title: '⚠️ 危险操作',
+      desc: actionName + '。请输入验证码确认，点“取消”放弃。',
+      placeholder: '请输入验证码',
+      mask: true,
+      confirmText: '确认执行',
+      danger: true
+    });
+    if(input === null) return false;
+    if(!input.trim()){ toast('未输入验证码，操作已取消'); return false; }
+    try {
+      const res = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: input.trim() })
+      });
+      let data = {};
+      try { data = await res.json(); } catch (e) {}
+      if(res.ok && data.ok) return true;
+      toast(data.error || '验证码错误，操作已取消');
+      return false;
+    } catch (err) {
+      toast('验证码校验失败：' + (err.message || '网络异常'));
+      return false;
+    }
+  }
+
 
   /**
    * HTML 富文本转 Markdown 格式转换器
@@ -881,15 +1017,17 @@ to{opacity:1;transform:none}}
         applyTheme(data.theme);
       }
 
-      if (Array.isArray(data.points) && data.points.length > 0) {
-        points = data.points.map(p => ({ ...p, starred: !!p.starred }));
-        pool = Array.isArray(data.pool) ? data.pool : [];
-        seen = new Set(Array.isArray(data.seen) ? data.seen : []);
-        draws = Number(data.draws) || 0;
-      } else {
+      // initialized === false 只在 KV 完全没有数据时出现；此时才写入示例卡片。
+      // 已存在的题库（哪怕被清空成空数组）一律原样加载，不会被示例数据复活。
+      if (data.initialized === false) {
         points = defaultPoints;
         pool = points.map(p => p.id);
         await saveDataToKV(true);
+      } else {
+        points = Array.isArray(data.points) ? data.points.map(p => ({ ...p, starred: !!p.starred })) : [];
+        pool = Array.isArray(data.pool) ? data.pool : [];
+        seen = new Set(Array.isArray(data.seen) ? data.seen : []);
+        draws = Number(data.draws) || 0;
       }
       status('ok', 'Cloudflare KV');
       syncPool(false);
@@ -949,13 +1087,20 @@ to{opacity:1;transform:none}}
       }, 1000);
     }
   }
-  $('#timerWidget').onclick = () => {
-    const input = prompt('设置倒计时时长（分钟）：', Math.round(timerSeconds / 60));
+  $('#timerWidget').onclick = async () => {
+    const input = await askTextDialog({
+      title: '⏱️ 设置倒计时',
+      desc: '输入分钟数；点“取消”则直接开始/暂停当前倒计时。',
+      placeholder: String(Math.round(timerSeconds / 60)),
+      confirmText: '开始'
+    });
     if (input === null) { toggleTimer(); return; }
     const mins = parseInt(input, 10);
     if (!isNaN(mins) && mins > 0) {
       if (isTimerRunning) { clearInterval(timerInterval); isTimerRunning = false; }
       timerSeconds = mins * 60; updateTimerDisplay(); toast('已设定倒计时：' + mins + ' 分钟'); toggleTimer();
+    } else {
+      toast('请输入有效的分钟数');
     }
   };
 
@@ -964,6 +1109,22 @@ to{opacity:1;transform:none}}
     if (!selectedCategory) return points;
     if (selectedCategory === '__STARRED__') return points.filter(p => p.starred);
     return points.filter(p => parseCategories(p.category).includes(selectedCategory));
+  }
+
+  // 当前筛选范围的可读名称，用于提示文案
+  function currentScopeLabel(){
+    const v = $('#mainCategoryFilter').value;
+    if (!v) return '全部题目';
+    if (v === '__STARRED__') return '收藏题目';
+    return '「' + v + '」分类';
+  }
+
+  // 本轮剩余：只统计「当前筛选范围内、还在牌池里」的题
+  // 关掉「本轮不重复」时牌池不参与抽卡，返回 null 让界面显示 —
+  function getPoolRemaining() {
+    if (!$('#noRepeatMode').checked) return null;
+    const eligible = new Set(getEligiblePoints().map(p => p.id));
+    return pool.filter(id => eligible.has(id)).length;
   }
 
   function weightedRandomSelect(candidates) {
@@ -978,6 +1139,9 @@ to{opacity:1;transform:none}}
     return candidates[0];
   }
 
+  // 本轮内是否发生过自动重置（供 draw() 统一提示，避免连发 toast）
+  let autoResetLabel = '';
+
   function drawOnePoint(){
     const candidates = getEligiblePoints();
     if(!candidates.length) return null;
@@ -987,8 +1151,8 @@ to{opacity:1;transform:none}}
       let activeCandidates = candidates.filter(item => pool.includes(item.id));
       if(!activeCandidates.length){
         candidates.forEach(item => { if(!pool.includes(item.id)) pool.push(item.id); });
-                activeCandidates = candidates;
-        toast('该分类下本轮已抽完，自动重置');
+        activeCandidates = candidates;
+        autoResetLabel = currentScopeLabel();
       }
       const chosen = weightedRandomSelect(activeCandidates);
       pool = pool.filter(id => id !== chosen.id);
@@ -1155,7 +1319,9 @@ to{opacity:1;transform:none}}
       return;
     }
     const wrap=$('#cardsWrap');wrap.innerHTML='';
-    
+    const noRepeat = $('#noRepeatMode').checked;
+    autoResetLabel = '';
+
     const drawnMap = new Map();
     for(let i=0; i<n; i++){
       const p = drawOnePoint();
@@ -1172,6 +1338,17 @@ to{opacity:1;transform:none}}
       wrap.appendChild(c);
     });
 
+    // 提示：自动重置 / 抽不满，两者只提示一条，避免排队刷屏
+    if(autoResetLabel && drawnList.length < n){
+      toast(autoResetLabel + '已抽完一轮并自动重开，本次只抽到 ' + drawnList.length + ' 张不同的题');
+    } else if(autoResetLabel){
+      toast(autoResetLabel + '已抽完一轮，已自动重新开始');
+    } else if(drawnList.length < n){
+      toast(noRepeat
+        ? '本轮可抽的题只剩 ' + drawnList.length + ' 张，已全部抽出'
+        : '随机抽到 ' + drawnList.length + ' 张不重复的题');
+    }
+
     renderStats();
   }
 
@@ -1180,7 +1357,15 @@ to{opacity:1;transform:none}}
     $('#statStarred').textContent=points.filter(p=>p.starred).length;
     const pct=points.length?Math.round(seen.size/points.length*100):0;
     $('#statCoverage').textContent=pct+'%';$('#progressBar').style.width=pct+'%';
-    $('#statPool').textContent=pool.length;$('#statDraws').textContent=draws;$('#countLabel').textContent=points.length
+
+    const remain = getPoolRemaining();
+    const poolEl = $('#statPool');
+    poolEl.textContent = remain === null ? '—' : remain;
+    poolEl.style.opacity = remain === null ? '.35' : '1';
+    poolEl.title = remain === null ? '“本轮不重复”已关闭，牌池未启用' : '';
+
+    $('#statDraws').textContent=draws;
+    $('#countLabel').textContent=points.length;
   }
 
   function renderList(){
@@ -1247,6 +1432,9 @@ to{opacity:1;transform:none}}
     $('#themeModal').classList.remove('show');
     $('#expandedCardModal').classList.remove('show');
     $('#importResultDialog').classList.remove('show');
+    $('#askDialog').classList.remove('show');
+    // 输入弹窗还挂着就一并作废，避免 Promise 永远不 resolve
+    if(askTextResolve){ const r = askTextResolve; askTextResolve = null; r(null); }
   }
   // 关闭大卡片：若它是由侧边栏列表打开的，只关卡片、保留侧边栏
   function closeExpandedCard(){
@@ -1257,6 +1445,15 @@ to{opacity:1;transform:none}}
     }
     closeOverlay();
   }
+
+  // 输入弹窗的按钮与键盘
+  $('#askOkBtn').onclick = () => closeAskDialog($('#askInput').value);
+  $('#askCancelBtn').onclick = () => closeAskDialog(null);
+  $('#askCloseBtn').onclick = () => closeAskDialog(null);
+  $('#askInput').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){ e.preventDefault(); closeAskDialog($('#askInput').value); }
+    else if(e.key === 'Escape'){ e.preventDefault(); closeAskDialog(null); }
+  });
 
   function openDrawer(){ openOverlay(); $('#drawer').classList.add('open'); }
   
@@ -1291,16 +1488,13 @@ to{opacity:1;transform:none}}
   $('#manageBtn').onclick = openDrawer;
   $('#closeDrawerBtn').onclick = closeOverlay;
   $('#overlay').onclick = () => {
+    if($('#askDialog').classList.contains('show')){ closeAskDialog(null); return; }
     if($('#expandedCardModal').classList.contains('show')){ closeExpandedCard(); return; }
     closeOverlay();
   };
   $('#closeImportResultBtn').onclick = closeOverlay;
   $('#confirmImportResultBtn').onclick = closeOverlay;
 
-  $('#manualSyncBtn').onclick = async () => {
-    await loadDataFromKV();
-    toast('已手动重新拉取云端数据');
-  };
   $('#syncState').onclick = async () => {
     await loadDataFromKV();
     toast('已手动重新拉取云端数据');
@@ -1336,7 +1530,17 @@ to{opacity:1;transform:none}}
 
   $('#drawOneBtn').onclick=()=>draw(1);
   $('#drawFiveBtn').onclick=()=>draw(5);
-  $('#resetPoolBtn').onclick=()=>{syncPool(true);saveDataToKV();toast('卡片已重置')};
+  $('#resetPoolBtn').onclick=()=>{
+    seen = new Set();
+    draws = 0;
+    autoResetLabel = '';
+    syncPool(true);
+    saveDataToKV(true); // 静默保存，避免它的 toast 盖掉重置提示
+    toast('已重置：牌池补满，覆盖率与抽卡次数归零');
+  };
+  // 切换「本轮不重复」/ 分类筛选时刷新统计口径
+  $('#noRepeatMode').addEventListener('change', renderStats);
+  $('#mainCategoryFilter').addEventListener('change', renderStats);
 
   $('#bulkAddBtn').onclick=()=>{
     const text=$('#bulkInput').value.trim();if(!text){toast('请输入内容');return}
@@ -1364,11 +1568,11 @@ to{opacity:1;transform:none}}
     toast('已批量添加 ' + n + ' 条题目');
   };
 
-  $('#pointList').onclick=e=>{
+  $('#pointList').onclick=async e=>{
     const b=e.target.closest('button');if(!b)return;
     const id = b.dataset.id;
     if(b.dataset.a==='del'){
-      if(!confirm('确定删除这道题吗？'))return;
+      if(!await verifyDangerKey('删除这道题'))return;
       points=points.filter(x=>x.id!==id);pool=pool.filter(x=>x!==id);seen.delete(id);
       saveDataToKV();updateCategoryOptions();renderList();renderStats();
     }else if(b.dataset.a==='edit'){
@@ -1461,8 +1665,9 @@ to{opacity:1;transform:none}}
     e.target.value = '';
   };
 
-  $('#clearAllBtn').onclick=()=>{
-    if(!confirm('确定清空全部题目？此操作不可恢复。'))return;
+  $('#clearAllBtn').onclick=async()=>{
+    if(!points.length){ toast('题库本来就是空的'); return; }
+    if(!await verifyDangerKey('清空全部题目（不可恢复）'))return;
     points=[];pool=[];seen=new Set();draws=0;
     saveDataToKV();updateCategoryOptions();renderList();renderStats();
     $('#cardsWrap').innerHTML='<div class="empty"><div class="big">✦</div><h2>题库已清空</h2><p>点击上方“+ 添加题目”进行添加。</p></div>';
