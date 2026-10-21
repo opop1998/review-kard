@@ -846,18 +846,46 @@ to{opacity:1;transform:none}}
   }
 
   function applyTheme(themeObj) {
-    currentTheme = themeObj;
-    document.documentElement.style.setProperty('--bg-gradient', themeObj.bg);
-    document.documentElement.style.setProperty('--card-bg', 'rgba(255, 255, 255, ' + (themeObj.cardOp || '0.75') + ')');
+    // 拷一份再保存，避免直接改到 PRESET_THEMES 里的预设对象（否则预设的默认透明度会被永久污染）
+    currentTheme = Object.assign({}, themeObj);
+    document.documentElement.style.setProperty('--bg-gradient', currentTheme.bg);
+    document.documentElement.style.setProperty('--card-bg', 'rgba(255, 255, 255, ' + (currentTheme.cardOp || '0.75') + ')');
     
-    if(themeObj.dark) {
+    if(currentTheme.dark) {
       document.documentElement.style.setProperty('--text', '#f8fafc');
       document.documentElement.style.setProperty('--muted', '#94a3b8');
-      document.documentElement.style.setProperty('--card-bg', 'rgba(30, 41, 59, ' + (themeObj.cardOp || '0.75') + ')');
+      document.documentElement.style.setProperty('--card-bg', 'rgba(30, 41, 59, ' + (currentTheme.cardOp || '0.75') + ')');
     } else {
       document.documentElement.style.setProperty('--text', '#1e293b');
       document.documentElement.style.setProperty('--muted', '#64748b');
     }
+  }
+
+  // 把当前主题回填到颜色选择器和滑块，避免重新打开面板时显示的还是旧参数
+  function syncThemeControls() {
+    $('#bgPicker').value = currentTheme.pickColor || '#e0e6ed';
+    $('#opacitySlider').value = currentTheme.cardOp || '0.75';
+  }
+
+  // 主题改动即时保存（防抖 400ms），不用每次记得点「保存并应用」
+  let themeSaveTimer = null;
+  let themeDirty = false;
+  function scheduleThemeSave() {
+    themeDirty = true;
+    clearTimeout(themeSaveTimer);
+    themeSaveTimer = setTimeout(() => {
+      themeSaveTimer = null;
+      if (!themeDirty) return;
+      themeDirty = false;
+      saveDataToKV(true);
+    }, 400);
+  }
+  function flushThemeSave() {
+    clearTimeout(themeSaveTimer);
+    themeSaveTimer = null;
+    if (!themeDirty) return;
+    themeDirty = false;
+    saveDataToKV(true);
   }
 
   function renderThemePresets() {
@@ -871,8 +899,8 @@ to{opacity:1;transform:none}}
       card.onclick = () => {
         applyTheme(t);
         renderThemePresets();
-        $('#bgPicker').value = t.pickColor || '#e0e6ed';
-        $('#opacitySlider').value = t.cardOp || 0.75;
+        syncThemeControls();
+        scheduleThemeSave();
       };
       grid.appendChild(card);
     });
@@ -881,31 +909,39 @@ to{opacity:1;transform:none}}
   $('#appLogo').addEventListener('dblclick', (e) => {
     e.stopPropagation();
     renderThemePresets();
+    syncThemeControls();
     openOverlay();
     $('#themeModal').classList.add('show');
   });
 
-  $('#closeThemeBtn').onclick = closeOverlay;
-  $('#saveThemeBtn').onclick = () => {
-    saveDataToKV();
+  $('#closeThemeBtn').onclick = () => {
+    flushThemeSave();
+    closeOverlay();
+  };
+  $('#saveThemeBtn').onclick = async () => {
+    clearTimeout(themeSaveTimer);
+    themeSaveTimer = null;
+    await saveDataToKV(true);
     closeOverlay();
     toast('主题配色已保存');
   };
 
   $('#bgPicker').oninput = (e) => {
     const hex = e.target.value;
-    const customT = {
+    applyTheme({
       name: '自定义',
       bg: 'linear-gradient(135deg, ' + hex + ' 0%, #ffffff 100%)',
       cardOp: $('#opacitySlider').value,
       pickColor: hex
-    };
-    applyTheme(customT);
+    });
+    renderThemePresets(); // 自定义后取消预设高亮
+    scheduleThemeSave();
   };
 
   $('#opacitySlider').oninput = (e) => {
-    currentTheme.cardOp = e.target.value;
-    applyTheme(currentTheme);
+    // 保留原来的名称：预设配色只调透明度时仍算该预设
+    applyTheme(Object.assign({}, currentTheme, { cardOp: e.target.value }));
+    scheduleThemeSave();
   };
 
   // 绑定 Markdown 快捷键与 HTML 富文本粘贴转换
@@ -1006,56 +1042,153 @@ to{opacity:1;transform:none}}
     select.value = currentVal;
   }
 
+  // ===== 本地缓存 / 断网兜底 =====
+  // 每次改动先写 localStorage 再上传；上传失败不影响本地，刷新也不会丢。
+  const LS_KEY = 'reviewcard_cache_v1';
+
+  function readCache() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function writeCache(payload, synced) {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(Object.assign({}, payload, { synced: !!synced })));
+    } catch (e) { /* 隐私模式 / 超限时忽略，不影响主流程 */ }
+  }
+  function cacheIsDirty() {
+    const c = readCache();
+    return !!(c && c.synced === false);
+  }
+
+  function buildPayload() {
+    return { points, pool, seen: [...seen], draws, theme: currentTheme, updatedAt: new Date().toISOString() };
+  }
+
+  function applyPayload(d) {
+    if (d.theme) applyTheme(d.theme);
+    points = Array.isArray(d.points) ? d.points.map(p => ({ ...p, starred: !!p.starred })) : [];
+    pool = Array.isArray(d.pool) ? d.pool : [];
+    seen = new Set(Array.isArray(d.seen) ? d.seen : []);
+    draws = Number(d.draws) || 0;
+  }
+
+  // 串行化保存：同一时刻只允许一个请求在飞，期间的多次改动合并成最后一次补发。
+  // 否则「抽五张」会并发 5 个 POST，网络抖动时旧快照后到会把新数据整份覆盖掉。
+  let saveInFlight = false;
+  let saveQueued = false;
+
+  async function saveDataToKV(silent = false) {
+    const payload = buildPayload();
+    writeCache(payload, false);
+    if (saveInFlight) { saveQueued = true; return; }
+    await flushSave(payload, silent);
+  }
+
+  async function flushSave(payload, silent) {
+    saveInFlight = true;
+    status('busy', '保存中...');
+    try {
+      const body = Object.assign({}, payload);
+      delete body.synced; // 缓存标记不上传
+      const res = await fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      // 只有本地没有更新的改动时，才把缓存标记成已同步
+      const cur = readCache();
+      if (!cur || cur.updatedAt === payload.updatedAt) {
+        writeCache(payload, true);
+        status('ok', 'Cloudflare KV');
+        if (!silent) toast('已同步到云端');
+      } else {
+        status('busy', '有新改动待上传');
+      }
+    } catch (e) {
+      status('err', '未同步');
+      if (!silent) toast('云端保存失败，改动已存在本地，联网后自动重试');
+    } finally {
+      saveInFlight = false;
+      if (saveQueued) {
+        saveQueued = false;
+        const latest = readCache();
+        if (latest && latest.synced === false) await flushSave(latest, silent);
+      }
+    }
+  }
+
   async function loadDataFromKV() {
     status('busy', '同步中...');
+    let data = null;
     try {
       const res = await fetch('/api/data');
       if (!res.ok) throw new Error('网络响应异常');
-      const data = await res.json();
-      
-      if (data.theme) {
-        applyTheme(data.theme);
-      }
-
-      // initialized === false 只在 KV 完全没有数据时出现；此时才写入示例卡片。
-      // 已存在的题库（哪怕被清空成空数组）一律原样加载，不会被示例数据复活。
-      if (data.initialized === false) {
-        points = defaultPoints;
-        pool = points.map(p => p.id);
-        await saveDataToKV(true);
+      data = await res.json();
+    } catch (e) {
+      // 断网：有本地缓存就用本地，别白屏也别丢题
+      const cached = readCache();
+      if (cached && Array.isArray(cached.points)) {
+        applyPayload(cached);
+        syncPool(false);
+        updateCategoryOptions();
+        renderList();
+        renderStats();
+        status('err', '离线·本地缓存');
+        toast('云端连接失败，已载入本地缓存');
+        return 'offline';
       } else {
-        points = Array.isArray(data.points) ? data.points.map(p => ({ ...p, starred: !!p.starred })) : [];
-        pool = Array.isArray(data.pool) ? data.pool : [];
-        seen = new Set(Array.isArray(data.seen) ? data.seen : []);
-        draws = Number(data.draws) || 0;
+        status('err', '加载失败');
+        toast('从 KV 加载失败：' + e.message);
+        return 'error';
       }
-      status('ok', 'Cloudflare KV');
+    }
+
+    const cached = readCache();
+    // 本地有「没传上去」的改动，且比云端更新 -> 以本地为准，并重试上传
+    const cacheNewer = cached && cached.synced === false &&
+      (!data.updatedAt || Date.parse(cached.updatedAt) > Date.parse(data.updatedAt));
+
+    if (cacheNewer) {
+      applyPayload(cached);
       syncPool(false);
       updateCategoryOptions();
       renderList();
       renderStats();
-    } catch (e) {
-      status('err', '加载失败');
-      toast('从 KV 加载失败：' + e.message);
+      status('err', '本地待上传');
+      toast('本地有未同步的修改，已保留并重试上传');
+      saveDataToKV(true);
+      return 'local';
     }
-  }
 
-  async function saveDataToKV(silent = false) {
-    status('busy', '保存中...');
-    try {
-      const payload = { points, pool, seen: [...seen], draws, theme: currentTheme, updatedAt: new Date().toISOString() };
-      const res = await fetch('/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('保存失败');
-      status('ok', 'Cloudflare KV');
-      if (!silent) toast('已同步到云端');
-    } catch (e) {
-      status('err', '保存出错');
-      toast('保存到 KV 失败：' + e.message);
+    // initialized === false 只在 KV 完全没有数据时出现。
+    // 本地若还有缓存（比如云端被清空），先用缓存恢复，避免数据凭空消失。
+    if (data.initialized === false) {
+      if (cached && Array.isArray(cached.points) && cached.points.length) {
+        applyPayload(cached);
+        toast('云端数据为空，已用本地缓存恢复');
+      } else {
+        points = defaultPoints;
+        pool = points.map(p => p.id);
+      }
+      syncPool(false);
+      updateCategoryOptions();
+      renderList();
+      renderStats();
+      await saveDataToKV(true);
+      return 'seeded';
     }
+
+    applyPayload(data);
+    writeCache(buildPayload(), true);
+    status('ok', 'Cloudflare KV');
+    syncPool(false);
+    updateCategoryOptions();
+    renderList();
+    renderStats();
+    return 'ok';
   }
 
   function syncPool(reset=false){
@@ -1496,9 +1629,19 @@ to{opacity:1;transform:none}}
   $('#confirmImportResultBtn').onclick = closeOverlay;
 
   $('#syncState').onclick = async () => {
-    await loadDataFromKV();
-    toast('已手动重新拉取云端数据');
+    // 本地还有没传上去的改动 -> 优先补传，别用云端旧数据把它盖掉
+    if (cacheIsDirty()) {
+      await saveDataToKV(true);
+      toast(cacheIsDirty() ? '上传失败，改动仍保存在本地' : '已上传本地未同步的修改');
+      return;
+    }
+    const result = await loadDataFromKV();
+    if (result === 'offline') toast('云端连接失败，已载入本地缓存');
+    else if (result === 'ok') toast('已手动重新拉取云端数据');
+    // 'error' / 'local' / 'seeded' 内部已给出提示
   };
+  // 网络恢复后自动补传，不用手动点
+  window.addEventListener('online', () => { if (cacheIsDirty()) saveDataToKV(true); });
 
   $('#saveDialogBtn').onclick = () => {
     const category = $('#inputCategory').value.trim();
