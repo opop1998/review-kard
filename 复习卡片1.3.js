@@ -397,6 +397,31 @@ to{opacity:1;transform:none}}
   background: rgba(255,255,255,.6); padding: 10px 14px; outline: none; font-size: 13px;
 }
 
+/* 题目列表分页 */
+.pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; font-size: 12px; color: var(--muted); }
+.pager button {
+  border: 1px solid var(--glass-border); background: rgba(255,255,255,.7); color: var(--text);
+  border-radius: 10px; padding: 6px 12px; font-size: 12px; transition: .15s;
+}
+.pager button:hover:not(:disabled) { background: #fff; }
+.pager button:disabled { opacity: .35; cursor: not-allowed; }
+
+/* 分类输入：自带下拉建议（原生 datalist 在移动端不弹） */
+.cat-field { position: relative; }
+.cat-suggest {
+  display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 5;
+  background: rgba(255,255,255,.99); border: 1px solid var(--glass-border); border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(15,23,42,.14); max-height: 190px; overflow: auto; padding: 6px;
+}
+.cat-suggest.show { display: block; }
+.cat-suggest .opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 12px; border-radius: 10px; font-size: 13px; color: var(--text); cursor: pointer;
+}
+.cat-suggest .opt:hover, .cat-suggest .opt.active { background: rgba(30,41,59,.07); }
+.cat-suggest .opt .tick { color: var(--accent); font-size: 12px; opacity: .7; }
+.cat-suggest .empty { padding: 10px 12px; font-size: 12px; color: var(--muted); }
+
 .list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .item {
   width: 100%; padding: 14px 16px; border: 1px solid var(--glass-border); border-radius: 18px;
@@ -588,9 +613,11 @@ to{opacity:1;transform:none}}
   </div>
   <div class="dialog-body">
     <div class="form-group">
-      <label>分类 <span class="tip">(支持检索/选择已存分类，逗号可分割多标签)</span></label>
-      <input type="text" id="inputCategory" list="existingCategoriesList" placeholder="选择或直接输入分类，如：HTTP, 计算机网络..." autocomplete="off" />
-      <datalist id="existingCategoriesList"></datalist>
+      <label>分类 <span class="tip">(点输入框可选已有分类，逗号可分割多标签)</span></label>
+      <div class="cat-field">
+        <input type="text" id="inputCategory" placeholder="选择或直接输入分类，如：HTTP, 计算机网络..." autocomplete="off" />
+        <div class="cat-suggest" id="catSuggest"></div>
+      </div>
     </div>
     <div class="form-group">
       <label>问题 <span class="tip">(快捷键: Ctrl+B 加粗, Ctrl+I 斜体)</span></label>
@@ -630,6 +657,7 @@ to{opacity:1;transform:none}}
       <div class="row" style="margin-top:10px">
         <button class="btn primary" id="bulkAddBtn">批量添加</button>
         <button class="btn" id="exportBtn">导出 JSON</button>
+        <button class="btn" id="exportMdBtn">导出 MD</button>
         <button class="btn" id="importBtn">导入 JSON</button>
         <input hidden type="file" id="importFile" accept=".json">
       </div>
@@ -643,6 +671,7 @@ to{opacity:1;transform:none}}
         <input type="text" id="searchInput" placeholder="🔍 搜索问题、答案或分类..." />
       </div>
       <div class="list" id="pointList"></div>
+      <div class="pager" id="listPager"></div>
     </section>
 
     <section class="section">
@@ -1041,6 +1070,64 @@ to{opacity:1;transform:none}}
 
     select.value = currentVal;
   }
+
+  // ===== 分类输入的自定义下拉 =====
+  // 原生 <datalist> 在 iOS Safari 等移动端浏览器根本不弹，统一换成页面内自己画的下拉。
+  function escHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function allCategoryNames(){
+    const set = new Set();
+    points.forEach(p => parseCategories(p.category).forEach(c => set.add(c)));
+    return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+  }
+
+  function hideCategorySuggest(){
+    const box = $('#catSuggest');
+    if(box) box.classList.remove('show');
+  }
+
+  function renderCategorySuggest(){
+    const box = $('#catSuggest');
+    const input = $('#inputCategory');
+    if(!box || !input) return;
+
+    const raw = input.value;
+    const segs = raw.split(/[,，]/).map(s => s.trim());
+    segs.pop(); // 最后一段是正在输入的半截，不算已选
+    const chosen = new Set(segs.filter(Boolean).map(s => s.toLowerCase()));
+    const typing = (raw.split(/[,，]/).pop() || '').trim().toLowerCase();
+
+    const cats = allCategoryNames().filter(c =>
+      !chosen.has(c.toLowerCase()) && (!typing || c.toLowerCase().includes(typing))
+    );
+
+    box.innerHTML = cats.length
+      ? cats.map(c => '<div class="opt" data-c="' + escHtml(c) + '"><span>' + escHtml(c) + '</span><span class="tick">＋</span></div>').join('')
+      : '<div class="empty">没有匹配的分类，可直接输入新分类</div>';
+    box.classList.add('show');
+  }
+
+  $('#inputCategory').addEventListener('focus', renderCategorySuggest);
+  $('#inputCategory').addEventListener('input', renderCategorySuggest);
+  $('#catSuggest').addEventListener('mousedown', (e) => {
+    const opt = e.target.closest('.opt');
+    if(!opt) return;
+    e.preventDefault(); // 保住输入框焦点，避免先触发 blur
+    const cat = opt.dataset.c;
+    const input = $('#inputCategory');
+    const segs = input.value.split(/[,，]/).map(s => s.trim());
+    segs.pop();
+    const parts = segs.filter(Boolean);
+    if(!parts.some(x => x.toLowerCase() === cat.toLowerCase())) parts.push(cat);
+    input.value = parts.join(', ') + ', ';
+    input.focus();
+    renderCategorySuggest();
+  });
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('.cat-field')) hideCategorySuggest();
+  });
 
   // ===== 本地缓存 / 断网兜底 =====
   // 每次改动先写 localStorage 再上传；上传失败不影响本地，刷新也不会丢。
@@ -1501,8 +1588,26 @@ to{opacity:1;transform:none}}
     $('#countLabel').textContent=points.length;
   }
 
+  // ===== 题目列表分页 =====
+  const LIST_PAGE_SIZE = 20;
+  let listPage = 1;
+
+  function renderPager(total, pageCount){
+    const el = $('#listPager');
+    if(!el) return;
+    if(total <= LIST_PAGE_SIZE){ el.innerHTML = ''; return; }
+    el.innerHTML = '<button id="pgPrev"' + (listPage <= 1 ? ' disabled' : '') + '>上一页</button>' +
+      '<span>第 ' + listPage + ' / ' + pageCount + ' 页 · 共 ' + total + ' 题</span>' +
+      '<button id="pgNext"' + (listPage >= pageCount ? ' disabled' : '') + '>下一页</button>';
+    $('#pgPrev').onclick = () => { if(listPage > 1){ listPage--; renderList(); scrollListToTop(); } };
+    $('#pgNext').onclick = () => { if(listPage < pageCount){ listPage++; renderList(); scrollListToTop(); } };
+  }
+  function scrollListToTop(){
+    $('#pointList').scrollIntoView({ block: 'nearest' });
+  }
+
   function renderList(){
-    const list=$('#pointList');list.innerHTML='';
+    const list=$('#pointList');
     const kw = $('#searchInput').value.trim().toLowerCase();
     
     const filtered = points.filter(p => {
@@ -1512,12 +1617,21 @@ to{opacity:1;transform:none}}
              (p.content && p.content.toLowerCase().includes(kw));
     });
 
-    if(!filtered.length){
+    const total = filtered.length;
+    const pageCount = Math.max(1, Math.ceil(total / LIST_PAGE_SIZE));
+    if(listPage > pageCount) listPage = pageCount;
+    if(listPage < 1) listPage = 1;
+
+    list.innerHTML='';
+    if(!total){
       list.innerHTML='<div style="color:#94a3b8;font-size:12px;padding:8px 0;">未找到相关题目</div>';
+      $('#countLabel').textContent = 0;
+      renderPager(0, 1);
       return;
     }
 
-    filtered.forEach(p=>{
+    const start = (listPage - 1) * LIST_PAGE_SIZE;
+    filtered.slice(start, start + LIST_PAGE_SIZE).forEach(p=>{
       const el=document.createElement('div');el.className='item';
       const cleanTitle = (p.title || '').replace(/[#*_\x60]/g, '').replace(/\n+/g, ' ');
       const cleanContent = (p.content || '').replace(/[#*_\x60]/g, '').replace(/\n+/g, ' ');
@@ -1553,9 +1667,12 @@ to{opacity:1;transform:none}}
       }
       list.appendChild(el);
     });
+
+    $('#countLabel').textContent = total;
+    renderPager(total, pageCount);
   }
 
-  $('#searchInput').oninput = renderList;
+  $('#searchInput').oninput = () => { listPage = 1; renderList(); };
 
   function openOverlay(){ $('#overlay').classList.add('show'); }
   function closeOverlay(){
@@ -1609,6 +1726,7 @@ to{opacity:1;transform:none}}
     }
     openOverlay();
     $('#itemDialog').classList.add('show');
+    hideCategorySuggest();
   }
 
   attachRichTextAndShortcuts($('#inputTitle'));
@@ -1661,6 +1779,10 @@ to{opacity:1;transform:none}}
       const p = { id: uid(), category, title, content, starred: false };
       points.push(p);
       pool.push(p.id);
+      // 跳到最后一页，保证新题看得见
+      if(!$('#searchInput').value.trim()){
+        listPage = Math.max(1, Math.ceil(points.length / LIST_PAGE_SIZE));
+      }
       toast('新增题目成功');
     }
 
@@ -1727,6 +1849,41 @@ to{opacity:1;transform:none}}
         saveDataToKV();renderList();renderStats();
       }
     }
+  };
+
+  function downloadTextFile(text, filename, mime){
+    const blob = new Blob([text], { type: (mime || 'text/plain') + ';charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  }
+
+  // 导出全部题目为 Markdown（不受当前分类筛选影响）
+  $('#exportMdBtn').onclick = () => {
+    if(!points.length){ toast('题库是空的，没有可导出的内容'); return; }
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const dateStr = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+
+    const lines = ['# 复习卡片题库', ''];
+    lines.push('> 导出时间：' + dateStr + '　|　共 ' + points.length + ' 题', '');
+
+    points.forEach((p, i) => {
+      const cats = parseCategories(p.category);
+      const title = (p.title || '（无问题）').replace(/\n+/g, ' ').trim();
+      lines.push('---', '');
+      lines.push('## ' + (i + 1) + '. ' + title, '');
+      const meta = [];
+      if(cats.length) meta.push('分类：' + cats.join('、'));
+      if(p.starred) meta.push('⭐ 收藏');
+      if(meta.length) lines.push('*' + meta.join(' | ') + '*', '');
+      lines.push((p.content || '_（暂无答案）_').trim(), '');
+    });
+
+    downloadTextFile(lines.join('\n'), '复习卡片题库-' + dateStr + '.md', 'text/markdown');
+    toast('已导出 ' + points.length + ' 道题（Markdown）');
   };
 
   $('#exportBtn').onclick=()=>{
