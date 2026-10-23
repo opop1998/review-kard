@@ -100,12 +100,27 @@ const HTML_CONTENT = String.raw`<!doctype html>
   --glass-bg: rgba(255, 255, 255, 0.68);
   --glass-border: rgba(255, 255, 255, 0.75);
   --glass-shadow: 0 20px 50px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --glass-blur: 28px;
   --card-bg: rgba(255, 255, 255, 0.75);
+  --small-card-bg: rgba(255, 255, 255, 0.75);
+  --drawer-bg: rgba(248, 250, 252, 0.85);
+  --dialog-bg: rgba(255, 255, 255, 0.85);
+  --btn-primary: #1e293b;
+  --btn-primary-dark: #0f172a;
+  --btn-primary-text: #ffffff;
+  --btn-bg: rgba(255, 255, 255, 0.6);
+  --btn-bg-hover: rgba(255, 255, 255, 0.9);
+  --panel-bg: rgba(255, 255, 255, 0.42);
+  --field-bg: rgba(255, 255, 255, 0.7);
+  --text-soft: #334155;
+  --chip-bg: rgba(30, 41, 59, 0.08);
+  --hover-bg: rgba(255, 255, 255, 0.5);
+  --pop-bg: rgba(255, 255, 255, 0.99);
   --text: #1e293b;
   --muted: #64748b;
-  --accent: #2563eb;
+  --accent: #f59e0b;
   --danger: #ef4444;
-  --star-color: #f59e0b;
+  --star-color: var(--accent);
 }
 
 *{box-sizing:border-box}
@@ -121,12 +136,13 @@ body{
 }
 
 button,input,textarea,select{font:inherit}
+input,textarea,select{color:var(--text)}
 button{cursor:pointer}
 
 .glass {
   background: var(--glass-bg);
-  backdrop-filter: blur(28px) saturate(140%);
-  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
   transition: background 0.3s ease, border-color 0.3s ease;
@@ -137,11 +153,13 @@ button{cursor:pointer}
 .topbar{
   display:flex;align-items:center;justify-content:space-between;gap:16px;
   padding:16px 24px;border-radius:24px;margin-bottom:20px;flex-wrap:wrap;
+  /* backdrop-filter 会生成层叠上下文，不抬高层级的话分类下拉会被下面的主面板盖住 */
+  position:relative;z-index:20;
 }
 .brand{display:flex;align-items:center;gap:13px}
 .logo{
   width:40px;height:40px;border-radius:14px;display:grid;place-items:center;
-  background:linear-gradient(135deg, #1e293b, #0f172a);color:#fff;font-size:18px;
+  background:linear-gradient(135deg, var(--btn-primary), var(--btn-primary-dark));color:var(--btn-primary-text);font-size:18px;
   box-shadow:0 8px 20px rgba(15,23,42,.15);
   cursor: pointer; user-select: none; transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -151,16 +169,42 @@ button{cursor:pointer}
 
 .timer-widget{
   display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text);
-  padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.5);border:1px solid var(--glass-border);
+  padding:5px 12px;border-radius:999px;background:var(--panel-bg);border:1px solid var(--glass-border);
   cursor:pointer;user-select:none;transition:.2s;
 }
-.timer-widget:hover{background:rgba(255,255,255,.85)}
+.timer-widget:hover{background:var(--btn-bg-hover)}
 
 .topbar-center{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* 分类筛选：原生 select 的弹出层在深色主题下是白底、文字还发白，换成自绘下拉 */
+.cat-filter{position:relative}
 .category-select{
+  display:flex;align-items:center;gap:8px;
   padding:7px 14px;border-radius:14px;border:1px solid var(--glass-border);
-  background:rgba(255,255,255,.6);color:var(--text);font-size:13px;outline:none;
+  background:var(--field-bg);color:var(--text);font-size:13px;font-weight:550;
+  font-family:inherit;outline:none;transition:.18s;white-space:nowrap;
 }
+.category-select:hover{background:var(--btn-bg-hover)}
+.category-select .chev{width:10px;height:10px;flex-shrink:0;transition:transform .2s;opacity:.65}
+.cat-filter.open .category-select .chev{transform:rotate(180deg)}
+.cat-filter-pop{
+  position:absolute;z-index:30;top:calc(100% + 8px);left:0;min-width:180px;
+  max-height:min(320px,60vh);overflow:auto;padding:6px;display:none;
+  background:var(--pop-bg);border:1px solid var(--glass-border);border-radius:16px;
+  box-shadow:0 18px 44px rgba(15,23,42,.2);
+  scrollbar-width:thin;scrollbar-color:rgba(148,163,184,.45) transparent;
+}
+.cat-filter-pop::-webkit-scrollbar{width:8px}
+.cat-filter-pop::-webkit-scrollbar-track{background:transparent}
+.cat-filter-pop::-webkit-scrollbar-thumb{background:var(--chip-bg);border-radius:8px}
+.cat-filter.open .cat-filter-pop{display:block}
+.cat-filter-pop .opt{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 12px;border-radius:10px;font-size:13px;color:var(--text);cursor:pointer;
+}
+.cat-filter-pop .opt:hover{background:var(--chip-bg)}
+.cat-filter-pop .opt.active{background:var(--chip-bg);font-weight:650}
+.cat-filter-pop .opt .tick{color:var(--accent);font-size:12px;opacity:0;flex-shrink:0}
+.cat-filter-pop .opt.active .tick{opacity:1}
 
 .toggle-switch{
   display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text);
@@ -176,24 +220,24 @@ button{cursor:pointer}
   border-radius:50%;background:#fff;transition:transform .2s ease;
   box-shadow:0 2px 4px rgba(0,0,0,.15);
 }
-.toggle-switch input:checked + .toggle-track{background:#1e293b}
+.toggle-switch input:checked + .toggle-track{background:var(--btn-primary)}
 .toggle-switch input:checked + .toggle-track::after{transform:translateX(16px)}
 
 .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;row-gap:8px}
 .icon-btn,.btn{
-  border:1px solid var(--glass-border);background:rgba(255,255,255,.6);color:var(--text);
+  border:1px solid var(--glass-border);background:var(--btn-bg);color:var(--text);
   border-radius:14px;padding:8px 16px;font-size:13px;font-weight:550;transition:.2s ease;
 }
 .icon-btn{width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:14px;}
-.btn:hover,.icon-btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.9)}
-.btn.primary{background:#1e293b;color:#fff;border-color:#1e293b}
+.btn:hover,.icon-btn:hover{transform:translateY(-1px);background:var(--btn-bg-hover)}
+.btn.primary{background:var(--btn-primary);color:var(--btn-primary-text);border-color:var(--btn-primary)}
 .btn.danger{color:var(--danger)}
 .sync{
   display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
-  padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.4);border:1px solid var(--glass-border);
+  padding:7px 12px;border-radius:999px;background:var(--panel-bg);border:1px solid var(--glass-border);
   cursor:pointer;transition:.2s ease;
 }
-.sync:hover{background:rgba(255,255,255,.8)}
+.sync:hover{background:var(--btn-bg-hover)}
 .dot{width:7px;height:7px;border-radius:50%;background:#94a3b8}
 .dot.ok{background:#10b981}.dot.busy{background:#f59e0b}.dot.err{background:#ef4444}
 
@@ -210,15 +254,15 @@ button{cursor:pointer}
   width:480px;height:480px;animation:appear .35s ease both;
   position:relative;padding:28px 30px 24px;display:flex;flex-direction:column;
   background: var(--card-bg);
-  backdrop-filter: blur(28px) saturate(140%);
-  -webkit-backdrop-filter: blur(28px) saturate(140%);
-  border:1px solid rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  border:1px solid var(--glass-border);
   border-radius:28px;
   box-shadow:0 20px 40px rgba(15, 23, 42, 0.08);
   user-select:none;transition:transform .2s ease, box-shadow .2s ease, background 0.3s ease;
 }
 .card:hover{transform:translateY(-2px);box-shadow:0 24px 50px rgba(15, 23, 42, 0.12)}
-.card.small{width:280px;height:340px;padding:20px}
+.card.small{width:280px;height:340px;padding:20px;background:var(--small-card-bg)}
 @keyframes appear{from{opacity:0;transform:translateY(12px) scale(.98)}
 to{opacity:1;transform:none}}
 
@@ -234,37 +278,37 @@ to{opacity:1;transform:none}}
   position:absolute;top:22px;right:24px;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:65%;
 }
 .card.small .tags-container{top:16px;right:16px}
-.tag-badge{background:rgba(30, 41, 59, 0.08);color:#334155;padding:3px 8px;border-radius:8px;font-weight:600;font-size:11px}
+.tag-badge{background:var(--chip-bg);color:var(--text-soft);padding:3px 8px;border-radius:8px;font-weight:600;font-size:11px}
 
 .qa-question{margin-top:20px;display:flex;flex-direction:column;flex-shrink:0}
 .qa-question small, .answer small{display:block;color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:6px;flex-shrink:0}
-.question{font-size:17px;font-weight:700;line-height:1.45;padding:6px 8px;border-radius:10px;transition:background .15s;color:#0f172a}
-.question:hover,.answer-content:hover{background:rgba(255,255,255,.5)}
+.question{font-size:17px;font-weight:700;line-height:1.45;padding:6px 8px;border-radius:10px;transition:background .15s;color:var(--text)}
+.question:hover,.answer-content:hover{background:var(--hover-bg)}
 
 .answer{
   border-top:1px dashed rgba(148, 163, 184, 0.35);margin-top:14px;padding-top:12px;
   display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;
 }
 .answer-content{
-  font-size:14px;line-height:1.65;color:#334155;padding:6px 8px;border-radius:10px;
+  font-size:14px;line-height:1.65;color:var(--text-soft);padding:6px 8px;border-radius:10px;
   flex:1;overflow-y:auto;transition:background .15s;
 }
 
 .answer-content::-webkit-scrollbar, .expanded-scroll::-webkit-scrollbar{width:4px}
-.answer-content::-webkit-scrollbar-thumb, .expanded-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12);border-radius:4px}
+.answer-content::-webkit-scrollbar-thumb, .expanded-scroll::-webkit-scrollbar-thumb{background:var(--chip-bg);border-radius:4px}
 
 .inline-editor {
-  width: 100%; border: 1px solid rgba(37, 99, 235, 0.4); border-radius: 10px;
+  width: 100%; border: 1px solid var(--btn-primary); border-radius: 10px;
   padding: 8px 10px; font-family: inherit; font-size: inherit; line-height: inherit;
-  color: var(--text); background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); outline: none; resize: none; overflow: hidden;
+  color: var(--text); background: var(--field-bg);
+  box-shadow: 0 0 0 3px var(--chip-bg); outline: none; resize: none; overflow: hidden;
   transition: all 0.15s ease;
 }
 
 .markdown-body p { margin: 0 0 8px 0; }
 .markdown-body p:last-child { margin-bottom: 0; }
 .markdown-body ul, .markdown-body ol { margin: 4px 0 8px 20px; padding: 0; }
-.markdown-body code { background: rgba(0,0,0,.06); padding: 2px 6px; border-radius: 6px; font-family: monospace; font-size: 0.88em; }
+.markdown-body code { background: var(--chip-bg); padding: 2px 6px; border-radius: 6px; font-family: monospace; font-size: 0.88em; }
 .markdown-body pre { background: #0f172a; color: #f8fafc; padding: 12px; border-radius: 12px; overflow-x: auto; font-size: 0.85em; }
 .markdown-body pre code { background: none; color: inherit; padding: 0; }
 .markdown-body blockquote { margin: 6px 0; padding-left: 12px; border-left: 3px solid #cbd5e1; color: var(--muted); }
@@ -273,11 +317,11 @@ to{opacity:1;transform:none}}
 .card.small .answer-content{font-size:11px}
 
 .reveal{
-  margin-top:auto; width:100%; border:1px solid rgba(255,255,255,.8);
-  background:rgba(255,255,255,.6); color:#1e293b; border-radius:14px;
+  margin-top:auto; width:100%; border:1px solid var(--glass-border);
+  background:var(--btn-bg); color:var(--text); border-radius:14px;
   padding:12px; font-weight:650; flex-shrink:0; backdrop-filter:blur(10px); transition:.2s;
 }
-.reveal:hover{background:rgba(255,255,255,.9);transform:translateY(-1px)}
+.reveal:hover{background:var(--btn-bg-hover);transform:translateY(-1px)}
 
 .draw-group{
   display:flex;gap:8px;align-items:center;
@@ -293,8 +337,9 @@ to{opacity:1;transform:none}}
 
 .theme-palette-modal {
   position: fixed; z-index: 35; top: 50%; left: 50%; transform: translate(-50%, -46%) scale(.95);
-  width: min(520px, 92vw); background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 28px;
+  width: min(560px, 92vw); max-height: 88vh; overflow-y: auto;
+  background: var(--dialog-bg);
+  border: 1px solid var(--glass-border); border-radius: 28px;
   box-shadow: 0 30px 80px rgba(15, 23, 42, 0.16); backdrop-filter: blur(32px) saturate(150%);
   padding: 28px; opacity: 0; pointer-events: none; transition: .2s ease;
 }
@@ -306,19 +351,32 @@ to{opacity:1;transform:none}}
   cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; gap: 8px;
 }
 .preset-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
-.preset-card.active { border-color: #1e293b; }
+.preset-card.active { border-color: var(--btn-primary); }
 .preset-preview { height: 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.8); }
 .preset-name { font-size: 12px; font-weight: 600; text-align: center; color: var(--text); }
 
-.color-controls { display: flex; flex-direction: column; gap: 12px; background: rgba(255,255,255,0.4); padding: 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.6); }
+.color-controls { display: flex; flex-direction: column; gap: 12px; background: var(--panel-bg); padding: 16px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.6); }
 .color-picker-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; }
-.color-picker-row input[type="color"] { border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; background: none; }
+.color-picker-row input[type="color"] { border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; background: none; box-shadow: inset 0 0 0 1px rgba(15,23,42,.18); }
+
+/* 精细化调节：分层不透明度 + 玻璃质感 */
+.theme-sec { margin-top: 18px; }
+.theme-sec-title { font-size: 11px; font-weight: 700; letter-spacing: .5px; color: var(--muted); margin-bottom: 10px; }
+.ctrl-panel {
+  display: flex; flex-direction: column; gap: 9px;
+  background: var(--panel-bg); padding: 14px 16px;
+  border-radius: 18px; border: 1px solid rgba(255,255,255,0.6);
+}
+.ctrl-row { display: flex; align-items: center; gap: 10px; }
+.ctrl-row > label { flex: 0 0 92px; font-size: 12px; font-weight: 500; color: var(--text); }
+.ctrl-row input[type="range"] { flex: 1; min-width: 0; height: 18px; accent-color: var(--btn-primary); }
+.ctrl-row .val { flex: 0 0 44px; text-align: right; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .card-expanded-modal{
   position:fixed;z-index:35;top:50%;left:50%;transform:translate(-50%,-46%) scale(.95);
   width:min(780px,92vw);max-height:85vh;
   background: var(--card-bg);
-  border:1px solid rgba(255, 255, 255, 0.9);
+  border:1px solid var(--glass-border);
   border-radius:32px; box-shadow:0 30px 80px rgba(15, 23, 42, 0.16);
   backdrop-filter:blur(32px) saturate(150%);
   padding:36px 40px;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:.2s ease;
@@ -329,20 +387,25 @@ to{opacity:1;transform:none}}
 .drawer{
   position:fixed;z-index:21;top:0;right:0;height:100dvh;width:min(500px,94vw);
   transform:translateX(102%);transition:transform .3s cubic-bezier(.2,.8,.2,1);
-  background:rgba(248, 250, 252, 0.85); border-left:1px solid rgba(255, 255, 255, 0.9);
+  background:var(--drawer-bg); border-left:1px solid var(--glass-border);
   box-shadow:-20px 0 60px rgba(15,23,42,.12); backdrop-filter:blur(30px);overflow:auto
 }
 .drawer.open{transform:none}
+/* 深色主题下默认滚动条是白条，换成细的低对比滚动条 */
+.drawer, .theme-palette-modal{scrollbar-width:thin;scrollbar-color:rgba(148,163,184,.45) transparent}
+.drawer::-webkit-scrollbar, .theme-palette-modal::-webkit-scrollbar{width:8px}
+.drawer::-webkit-scrollbar-track, .theme-palette-modal::-webkit-scrollbar-track{background:transparent}
+.drawer::-webkit-scrollbar-thumb, .theme-palette-modal::-webkit-scrollbar-thumb{background:var(--chip-bg);border-radius:8px}
 .drawer-head{
   position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;
-  padding:20px 24px;border-bottom:1px solid var(--glass-border);background:rgba(248,250,252,.75);backdrop-filter:blur(20px)
+  padding:20px 24px;border-bottom:1px solid var(--glass-border);background:var(--panel-bg);backdrop-filter:blur(20px)
 }
 .drawer-head h2{font-size:17px;margin:0}.drawer-body{padding:20px 24px 50px}
 
 .dialog {
   position: fixed; z-index: 30; top: 50%; left: 50%; transform: translate(-50%, -46%) scale(0.95);
-  width: min(560px, 92vw); background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 28px;
+  width: min(560px, 92vw); background: var(--dialog-bg);
+  border: 1px solid var(--glass-border); border-radius: 28px;
   box-shadow: 0 25px 70px rgba(15,23,42,.15); backdrop-filter: blur(30px) saturate(140%);
   padding: 28px; opacity: 0; pointer-events: none; transition: .2s ease;
 }
@@ -356,15 +419,15 @@ to{opacity:1;transform:none}}
 .ask-dialog { z-index: 45; }
 .ask-dialog #askInput {
   width: 100%; padding: 12px 14px; border-radius: 14px; font-size: 16px;
-  border: 1px solid var(--glass-border); background: rgba(255,255,255,.75);
+  border: 1px solid var(--glass-border); background: var(--field-bg);
   color: var(--text); outline: none; letter-spacing: 1px; box-sizing: border-box;
 }
-.ask-dialog #askInput:focus { border-color: #94a3b8; background: #fff; }
+.ask-dialog #askInput:focus { border-color: var(--btn-primary); background: var(--field-bg); }
 .btn.danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; }
 .btn.danger-solid:hover { background: #dc2626; color: #fff; }
 
 .import-result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 6px; }
-.import-res-item { background: rgba(255,255,255,0.6); padding: 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.8); text-align: center; }
+.import-res-item { background: var(--panel-bg); padding: 12px; border-radius: 16px; border: 1px solid var(--glass-border); text-align: center; }
 .import-res-item .num { font-size: 20px; font-weight: 800; }
 .import-res-item .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
@@ -372,45 +435,45 @@ to{opacity:1;transform:none}}
 .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); display:flex; justify-content:space-between; }
 .form-group label span.tip { font-weight:400; opacity:0.8; font-size:11px; }
 .form-group input, .form-group textarea {
-  width: 100%; border: 1px solid var(--glass-border); border-radius: 14px; background: rgba(255,255,255,.6);
+  width: 100%; border: 1px solid var(--glass-border); border-radius: 14px; background: var(--field-bg);
   padding: 10px 14px; outline: none; font-size: 13px; color: var(--text); transition: all .15s ease;
 }
 .form-group input:focus, .form-group textarea:focus {
-  background:rgba(255,255,255,.9); border-color: rgba(37,99,235,0.5); box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+  background:var(--field-bg); border-color: var(--btn-primary); box-shadow: 0 0 0 3px var(--chip-bg);
 }
 .form-group textarea { resize: vertical; }
 
 .section{margin-bottom:24px}.section-title{font-size:11px;font-weight:750;letter-spacing:1px;color:#94a3b8;margin-bottom:10px;text-transform:uppercase}
 
 .stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px}
-.stat{padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.6)}
+.stat{padding:14px 16px;border-radius:16px;background:var(--panel-bg);border:1px solid var(--glass-border)}
 .stat .num{font-size:22px;font-weight:760;letter-spacing:-1px}
 .stat .label{font-size:11px;color:var(--muted);margin-top:2px}
-.progress{height:5px;background:rgba(0,0,0,.06);border-radius:99px;margin-top:8px;overflow:hidden}
-.progress i{display:block;height:100%;width:0;background:#1e293b;border-radius:99px;transition:width .3s}
+.progress{height:5px;background:var(--chip-bg);border-radius:99px;margin-top:8px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--btn-primary);border-radius:99px;transition:width .3s}
 
 .row{display:flex;gap:8px}.row>*{flex:1}
 
 .search-box { width: 100%; margin-bottom: 12px; }
 .search-box input {
   width: 100%; border: 1px solid var(--glass-border); border-radius: 14px;
-  background: rgba(255,255,255,.6); padding: 10px 14px; outline: none; font-size: 13px;
+  background: var(--field-bg); padding: 10px 14px; outline: none; font-size: 13px;
 }
 
 /* 题目列表分页 */
 .pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; font-size: 12px; color: var(--muted); }
 .pager button {
-  border: 1px solid var(--glass-border); background: rgba(255,255,255,.7); color: var(--text);
+  border: 1px solid var(--glass-border); background: var(--btn-bg); color: var(--text);
   border-radius: 10px; padding: 6px 12px; font-size: 12px; transition: .15s;
 }
-.pager button:hover:not(:disabled) { background: #fff; }
+.pager button:hover:not(:disabled) { background: var(--btn-bg-hover); }
 .pager button:disabled { opacity: .35; cursor: not-allowed; }
 
 /* 分类输入：自带下拉建议（原生 datalist 在移动端不弹） */
 .cat-field { position: relative; }
 .cat-suggest {
   display: none; position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 5;
-  background: rgba(255,255,255,.99); border: 1px solid var(--glass-border); border-radius: 14px;
+  background: var(--pop-bg); border: 1px solid var(--glass-border); border-radius: 14px;
   box-shadow: 0 12px 30px rgba(15,23,42,.14); max-height: 190px; overflow: auto; padding: 6px;
 }
 .cat-suggest.show { display: block; }
@@ -418,22 +481,22 @@ to{opacity:1;transform:none}}
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 9px 12px; border-radius: 10px; font-size: 13px; color: var(--text); cursor: pointer;
 }
-.cat-suggest .opt:hover, .cat-suggest .opt.active { background: rgba(30,41,59,.07); }
+.cat-suggest .opt:hover, .cat-suggest .opt.active { background: var(--chip-bg); }
 .cat-suggest .opt .tick { color: var(--accent); font-size: 12px; opacity: .7; }
 .cat-suggest .empty { padding: 10px 12px; font-size: 12px; color: var(--muted); }
 
 .list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .item {
   width: 100%; padding: 14px 16px; border: 1px solid var(--glass-border); border-radius: 18px;
-  background: rgba(255,255,255,.45); display: flex; gap: 12px; align-items: center;
+  background: var(--panel-bg); display: flex; gap: 12px; align-items: center;
   justify-content: space-between; box-sizing: border-box;
   transition: background .15s, transform .15s, box-shadow .15s;
   cursor: pointer; user-select: none;
 }
-.item:hover { background: rgba(255,255,255,.75); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.06); }
+.item:hover { background: var(--btn-bg-hover); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.06); }
 .item-main { min-width: 0; flex: 1; }
 .item-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; flex-wrap:wrap; }
-.item-tag { font-size: 10px; font-weight: 700; background: rgba(30,41,59,.08); color: #334155; padding: 2px 6px; border-radius: 6px; flex-shrink: 0; }
+.item-tag { font-size: 10px; font-weight: 700; background: var(--chip-bg); color: var(--text-soft); padding: 2px 6px; border-radius: 6px; flex-shrink: 0; }
 .item-main b {
   display: block; font-size: 13px; line-height: 1.4; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -443,7 +506,7 @@ to{opacity:1;transform:none}}
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .item-ops { display: flex; gap: 6px; flex-shrink: 0; }
-.item-ops button { font-size: 11px; padding: 5px 10px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255,255,255,.8); }
+.item-ops button { font-size: 11px; padding: 5px 10px; border-radius: 10px; border: 1px solid var(--glass-border); background: var(--btn-bg); color: var(--text); }
 
 .toast{
   position:fixed;z-index:50;left:50%;bottom:28px;transform:translate(-50%,12px);opacity:0;
@@ -502,9 +565,16 @@ to{opacity:1;transform:none}}
     </div>
     
     <div class="topbar-center">
-      <select class="category-select" id="mainCategoryFilter">
-        <option value="">全部分类</option>
-      </select>
+      <div class="cat-filter" id="catFilter">
+        <button type="button" class="category-select" id="catFilterBtn" aria-haspopup="listbox" aria-expanded="false">
+          <span id="catFilterLabel">全部分类</span>
+          <svg class="chev" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="cat-filter-pop" id="catFilterPop" role="listbox"></div>
+        <select id="mainCategoryFilter" hidden>
+          <option value="">全部分类</option>
+        </select>
+      </div>
       <label class="toggle-switch">
         <input type="checkbox" id="noRepeatMode" checked>
         <span class="toggle-track"></span>
@@ -538,19 +608,44 @@ to{opacity:1;transform:none}}
     <h3>🎨 氛围色调与毛玻璃设置</h3>
     <button class="icon-btn" id="closeThemeBtn">×</button>
   </div>
-  <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">选择预设推荐主题，或自定义背景色调与卡片透明度：</div>
-  
-  <div class="preset-grid" id="presetGrid"></div>
+  <div style="font-size:12px;color:var(--muted);">选一套预设，或逐项微调每个层级的玻璃效果。改动即时生效、自动保存。</div>
 
-  <div class="color-controls">
-    <div class="color-picker-row">
-      <span>自定义主背景色</span>
-      <input type="color" id="bgPicker" value="#e0e6ed">
+  <div class="theme-sec">
+    <div class="theme-sec-title">预设主题</div>
+    <div class="preset-grid" id="presetGrid" style="margin:0"></div>
+  </div>
+
+  <div class="theme-sec">
+    <div class="theme-sec-title">全局</div>
+    <div class="ctrl-panel">
+      <div class="color-picker-row">
+        <span>主背景色</span>
+        <input type="color" id="bgPicker" value="#e0e6ed">
+      </div>
+      <div class="color-picker-row">
+        <span>主色 · 按钮 / 开关 / 进度条</span>
+        <input type="color" id="primaryPicker" value="#1e293b">
+      </div>
+      <div class="color-picker-row">
+        <span>图标色 · 星标 / 勾选</span>
+        <input type="color" id="accentPicker" value="#f59e0b">
+      </div>
+      <div class="ctrl-row">
+        <label>模糊强度</label>
+        <input type="range" id="blurSlider" min="0" max="60" step="2" value="28">
+        <span class="val" id="blurVal">28px</span>
+      </div>
+      <div class="ctrl-row">
+        <label>边框亮度</label>
+        <input type="range" id="borderSlider" min="0" max="1" step="0.05" value="0.75">
+        <span class="val" id="borderVal">75%</span>
+      </div>
     </div>
-    <div class="color-picker-row">
-      <span>卡片玻璃不透明度</span>
-      <input type="range" id="opacitySlider" min="0.3" max="0.95" step="0.05" value="0.75">
-    </div>
+  </div>
+
+  <div class="theme-sec">
+    <div class="theme-sec-title">各层不透明度</div>
+    <div class="ctrl-panel" id="surfaceControls"></div>
   </div>
 
   <div class="dialog-foot">
@@ -597,7 +692,7 @@ to{opacity:1;transform:none}}
         <div class="lbl">格式无效</div>
       </div>
     </div>
-    <div style="font-size:12px;color:var(--muted);line-height:1.5;background:rgba(255,255,255,0.5);padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.7);">
+    <div style="font-size:12px;color:var(--muted);line-height:1.5;background:var(--panel-bg);padding:10px 12px;border-radius:12px;border:1px solid var(--glass-border);">
       ℹ️ <b>去重规则说明：</b>系统根据题目标题自动去重（忽略前后空格及大小写差异）。重复题目已保留原有内容，未进行覆盖。
     </div>
   </div>
@@ -620,11 +715,14 @@ to{opacity:1;transform:none}}
       </div>
     </div>
     <div class="form-group">
-      <label>问题 <span class="tip">(快捷键: Ctrl+B 加粗, Ctrl+I 斜体)</span></label>
-      <input type="text" id="inputTitle" placeholder="请输入问题描述..." />
+      <label>问题 <span class="tip">(点输入框可选已有问题，Ctrl+B 加粗 / Ctrl+I 斜体)</span></label>
+      <div class="cat-field">
+        <input type="text" id="inputTitle" placeholder="请输入问题描述..." autocomplete="off" />
+        <div class="cat-suggest" id="titleSuggest"></div>
+      </div>
     </div>
     <div class="form-group">
-      <label>答案 <span class="tip">(支持粘贴带格式富文本，将自动转为 Markdown)</span></label>
+      <label>答案 <span class="tip">(Ctrl+Shift+Q 引用 · Ctrl+Shift+K 代码块 · 粘贴富文本自动转 Markdown)</span></label>
       <textarea id="inputContent" rows="6" placeholder="请输入详细答案，支持 Markdown 格式..."></textarea>
     </div>
   </div>
@@ -653,7 +751,7 @@ to{opacity:1;transform:none}}
 
     <section class="section">
       <div class="section-title">批量导入 (格式：分类 | 问题 | 答案)</div>
-      <textarea id="bulkInput" style="width:100%;min-height:90px;border-radius:14px;border:1px solid var(--glass-border);padding:10px;background:rgba(255,255,255,.5)" placeholder="网络, HTTP | HTTP 200 | 成功&#10;HTTP 404 | 未找到"></textarea>
+      <textarea id="bulkInput" style="width:100%;min-height:90px;border-radius:14px;border:1px solid var(--glass-border);padding:10px;background:var(--field-bg)" placeholder="网络, HTTP | HTTP 200 | 成功&#10;HTTP 404 | 未找到"></textarea>
       <div class="row" style="margin-top:10px">
         <button class="btn primary" id="bulkAddBtn">批量添加</button>
         <button class="btn" id="exportBtn">导出 JSON</button>
@@ -700,16 +798,55 @@ to{opacity:1;transform:none}}
     {id:uid(),category:'JS, 前端',title:'使用 \x60async/await\x60 的优势？',content:'* 消除回调地狱（Callback Hell）\n* 代码逻辑呈同步书写样式，可读性更高\n* 可使用标准的 \x60try/catch\x60 捕获异步异常', starred: false}
   ];
 
+  // 每个主题对各层玻璃单独设定不透明度；primary=主色（按钮/开关/进度） accent=图标色（星标/勾选）
   const PRESET_THEMES = [
-    { name: '极光冰蓝', bg: 'linear-gradient(135deg, #e0e6ed 0%, #edf2f7 50%, #dbe3ed 100%)', cardOp: '0.75', pickColor: '#e0e6ed' },
-    { name: '莫兰迪粉', bg: 'linear-gradient(135deg, #f5e6e8 0%, #f9f0f2 50%, #ebd8dc 100%)', cardOp: '0.75', pickColor: '#f5e6e8' },
-    { name: '森林苔绿', bg: 'linear-gradient(135deg, #e2ebd8 0%, #eff5ea 50%, #d3e0c7 100%)', cardOp: '0.75', pickColor: '#e2ebd8' },
-    { name: '暮光日落', bg: 'linear-gradient(135deg, #faebd7 0%, #fdf5e6 50%, #f3d9b1 100%)', cardOp: '0.75', pickColor: '#faebd7' },
-    { name: '燕麦奶茶', bg: 'linear-gradient(135deg, #e9e4dc 0%, #f4efe9 50%, #ded7cd 100%)', cardOp: '0.78', pickColor: '#e9e4dc' },
-    { name: '暗夜微光', bg: 'linear-gradient(135deg, #2a323d 0%, #1e2530 50%, #141a24 100%)', cardOp: '0.65', pickColor: '#2a323d', dark: true }
+    { name: '极光冰蓝', bg: 'linear-gradient(135deg, #e0e6ed 0%, #edf2f7 50%, #dbe3ed 100%)', pickColor: '#e0e6ed',
+      primary: '#1e293b', accent: '#f59e0b',
+      op: { card: 0.78, small: 0.82, glass: 0.68, drawer: 0.88, dialog: 0.86 }, blur: 28, borderA: 0.75 },
+    { name: '莫兰迪粉', bg: 'linear-gradient(135deg, #f5e6e8 0%, #f9f0f2 50%, #ebd8dc 100%)', pickColor: '#f5e6e8',
+      primary: '#8a5a6a', accent: '#d98ba0',
+      op: { card: 0.75, small: 0.8, glass: 0.66, drawer: 0.86, dialog: 0.84 }, blur: 28, borderA: 0.78 },
+    { name: '森林苔绿', bg: 'linear-gradient(135deg, #e2ebd8 0%, #eff5ea 50%, #d3e0c7 100%)', pickColor: '#e2ebd8',
+      primary: '#2f4a35', accent: '#7c9a5a',
+      op: { card: 0.76, small: 0.8, glass: 0.66, drawer: 0.86, dialog: 0.84 }, blur: 26, borderA: 0.74 },
+    { name: '暮光日落', bg: 'linear-gradient(135deg, #faebd7 0%, #fdf5e6 50%, #f3d9b1 100%)', pickColor: '#faebd7',
+      primary: '#8a4b2a', accent: '#e0873f',
+      op: { card: 0.74, small: 0.78, glass: 0.64, drawer: 0.85, dialog: 0.84 }, blur: 30, borderA: 0.8 },
+    { name: '燕麦奶茶', bg: 'linear-gradient(135deg, #e9e4dc 0%, #f4efe9 50%, #ded7cd 100%)', pickColor: '#e9e4dc',
+      primary: '#5b4a3a', accent: '#b08a5f',
+      op: { card: 0.8, small: 0.84, glass: 0.7, drawer: 0.9, dialog: 0.88 }, blur: 24, borderA: 0.72 },
+    { name: '暗夜微光', bg: 'linear-gradient(135deg, #2a323d 0%, #1e2530 50%, #141a24 100%)', pickColor: '#2a323d', dark: true,
+      primary: '#e2e8f0', accent: '#7dd3fc',
+      op: { card: 0.65, small: 0.7, glass: 0.58, drawer: 0.82, dialog: 0.8 }, blur: 34, borderA: 0.14 }
   ];
 
-  let currentTheme = PRESET_THEMES[0];
+  const DEFAULT_OPS = { card: 0.75, small: 0.75, glass: 0.68, drawer: 0.85, dialog: 0.85 };
+
+  // 统一主题对象结构，并兼容旧版只有 cardOp 的历史数据
+  function normalizeTheme(src){
+    const s = src || {};
+    const op = Object.assign({}, DEFAULT_OPS, s.op);
+    if(s.cardOp != null && !(s.op && s.op.card != null)){
+      op.card = Number(s.cardOp);
+      if(!(s.op && s.op.small != null)) op.small = Number(s.cardOp);
+    }
+    Object.keys(op).forEach(k => {
+      const n = Number(op[k]);
+      op[k] = isFinite(n) ? Math.min(0.98, Math.max(0, n)) : DEFAULT_OPS[k];
+    });
+    const t = Object.assign({ blur: 28, borderA: 0.75, primary: '#1e293b', accent: '#f59e0b' }, s);
+    t.op = op;
+    const blurN = Number(t.blur);
+    t.blur = isFinite(blurN) ? Math.min(60, Math.max(0, blurN)) : 28;
+    const borderN = Number(t.borderA);
+    t.borderA = isFinite(borderN) ? Math.min(1, Math.max(0, borderN)) : 0.75;
+    if(!/^#[0-9a-fA-F]{6}$/.test(t.primary)) t.primary = '#1e293b';
+    if(!/^#[0-9a-fA-F]{6}$/.test(t.accent)) t.accent = '#f59e0b';
+    delete t.cardOp;
+    return t;
+  }
+
+  let currentTheme = normalizeTheme(PRESET_THEMES[0]);
 
   let points = [];
   let pool = [];
@@ -874,26 +1011,109 @@ to{opacity:1;transform:none}}
       .trim();
   }
 
+  // 分层目标：每层有自己的不透明度
+  const SURFACE_CONTROLS = [
+    { key: 'card',   label: '大卡' },
+    { key: 'small',  label: '小卡' },
+    { key: 'glass',  label: '顶栏/主面板' },
+    { key: 'drawer', label: '侧边栏' },
+    { key: 'dialog', label: '弹窗' }
+  ];
+
+  // 把 hex 调亮/调暗，用于生成主色的深色端（Logo 渐变）
+  function shadeHex(hex, amount){
+    const s = String(hex).replace('#', '');
+    if(s.length !== 6) return hex;
+    const n = parseInt(s, 16);
+    const clamp = v => Math.max(0, Math.min(255, Math.round(v * (1 + amount))));
+    const r = clamp((n >> 16) & 255), g = clamp((n >> 8) & 255), b = clamp(n & 255);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
   function applyTheme(themeObj) {
-    // 拷一份再保存，避免直接改到 PRESET_THEMES 里的预设对象（否则预设的默认透明度会被永久污染）
-    currentTheme = Object.assign({}, themeObj);
-    document.documentElement.style.setProperty('--bg-gradient', currentTheme.bg);
-    document.documentElement.style.setProperty('--card-bg', 'rgba(255, 255, 255, ' + (currentTheme.cardOp || '0.75') + ')');
-    
-    if(currentTheme.dark) {
-      document.documentElement.style.setProperty('--text', '#f8fafc');
-      document.documentElement.style.setProperty('--muted', '#94a3b8');
-      document.documentElement.style.setProperty('--card-bg', 'rgba(30, 41, 59, ' + (currentTheme.cardOp || '0.75') + ')');
+    // 归一化会返回新对象，避免直接改到 PRESET_THEMES 里的预设
+    const t = normalizeTheme(themeObj);
+    currentTheme = t;
+
+    const tint = t.dark ? '30, 41, 59' : '255, 255, 255';
+    const drawerTint = t.dark ? '30, 41, 59' : '248, 250, 252';
+    const set = (k, v) => document.documentElement.style.setProperty(k, v);
+
+    set('--bg-gradient', t.bg || PRESET_THEMES[0].bg);
+    set('--card-bg', 'rgba(' + tint + ', ' + t.op.card + ')');
+    set('--small-card-bg', 'rgba(' + tint + ', ' + t.op.small + ')');
+    set('--glass-bg', 'rgba(' + tint + ', ' + t.op.glass + ')');
+    set('--drawer-bg', 'rgba(' + drawerTint + ', ' + t.op.drawer + ')');
+    set('--dialog-bg', 'rgba(' + tint + ', ' + t.op.dialog + ')');
+    set('--glass-blur', t.blur + 'px');
+    set('--glass-border', 'rgba(255, 255, 255, ' + t.borderA + ')');
+    set('--text', t.dark ? '#f8fafc' : '#1e293b');
+    set('--muted', t.dark ? '#94a3b8' : '#64748b');
+
+    // 按钮主色 + 图标色；主色太亮时文字自动转深色
+    set('--btn-primary', t.primary);
+    set('--btn-primary-dark', shadeHex(t.primary, -0.28));
+    set('--btn-primary-text', isDarkHex(t.primary) ? '#ffffff' : '#0f172a');
+    set('--accent', t.accent);
+
+    // 中性面（按钮底、输入框、统计卡、列表项）跟着深浅走，否则深色主题会白底白字
+    if (t.dark) {
+      set('--btn-bg', 'rgba(255, 255, 255, 0.12)');
+      set('--btn-bg-hover', 'rgba(255, 255, 255, 0.2)');
+      set('--panel-bg', 'rgba(255, 255, 255, 0.08)');
+      set('--field-bg', 'rgba(255, 255, 255, 0.09)');
+      set('--text-soft', '#cbd5e1');
+      set('--chip-bg', 'rgba(255, 255, 255, 0.14)');
+      set('--hover-bg', 'rgba(255, 255, 255, 0.08)');
+      set('--pop-bg', 'rgba(30, 41, 59, 0.98)');
     } else {
-      document.documentElement.style.setProperty('--text', '#1e293b');
-      document.documentElement.style.setProperty('--muted', '#64748b');
+      set('--btn-bg', 'rgba(255, 255, 255, 0.72)');
+      set('--btn-bg-hover', 'rgba(255, 255, 255, 0.92)');
+      set('--panel-bg', 'rgba(255, 255, 255, 0.42)');
+      set('--field-bg', 'rgba(255, 255, 255, 0.7)');
+      set('--text-soft', '#334155');
+      set('--chip-bg', 'rgba(30, 41, 59, 0.08)');
+      set('--hover-bg', 'rgba(255, 255, 255, 0.5)');
+      set('--pop-bg', 'rgba(255, 255, 255, 0.99)');
     }
   }
 
-  // 把当前主题回填到颜色选择器和滑块，避免重新打开面板时显示的还是旧参数
+  // 生成「各层不透明度」的滑块（只生成一次）
+  function renderSurfaceControls() {
+    const box = $('#surfaceControls');
+    if (!box || box.dataset.built) return;
+    box.innerHTML = SURFACE_CONTROLS.map(c =>
+      '<div class="ctrl-row"><label>' + c.label + '</label>' +
+      '<input type="range" min="0.2" max="0.98" step="0.02" data-op="' + c.key + '">' +
+      '<span class="val" data-val="' + c.key + '"></span></div>'
+    ).join('');
+    box.dataset.built = '1';
+  }
+
+  // 把当前主题回填到所有控件，避免重新打开面板时显示的还是旧参数
   function syncThemeControls() {
-    $('#bgPicker').value = currentTheme.pickColor || '#e0e6ed';
-    $('#opacitySlider').value = currentTheme.cardOp || '0.75';
+    renderSurfaceControls();
+    const t = currentTheme;
+    $('#bgPicker').value = t.pickColor || '#e0e6ed';
+    $('#primaryPicker').value = t.primary;
+    $('#accentPicker').value = t.accent;
+    $('#blurSlider').value = t.blur;
+    $('#blurVal').textContent = t.blur + 'px';
+    $('#borderSlider').value = t.borderA;
+    $('#borderVal').textContent = Math.round(t.borderA * 100) + '%';
+    SURFACE_CONTROLS.forEach(c => {
+      const el = document.querySelector('input[data-op="' + c.key + '"]');
+      const label = document.querySelector('[data-val="' + c.key + '"]');
+      if (el) el.value = t.op[c.key];
+      if (label) label.textContent = Math.round(t.op[c.key] * 100) + '%';
+    });
+  }
+
+  // 改一个参数 → 立即生效 → 回填数值 → 防抖保存
+  function updateTheme(patch) {
+    applyTheme(Object.assign({}, currentTheme, patch, { op: Object.assign({}, currentTheme.op, patch && patch.op) }));
+    syncThemeControls();
+    scheduleThemeSave();
   }
 
   // 主题改动即时保存（防抖 400ms），不用每次记得点「保存并应用」
@@ -955,23 +1175,47 @@ to{opacity:1;transform:none}}
     toast('主题配色已保存');
   };
 
+  // 按背景色亮度自动决定深/浅文字，避免深底配深字
+  function isDarkHex(hex){
+    const s = String(hex).replace('#', '');
+    if(s.length !== 6) return false;
+    const n = parseInt(s, 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) < 130;
+  }
+
   $('#bgPicker').oninput = (e) => {
     const hex = e.target.value;
-    applyTheme({
+    updateTheme({
       name: '自定义',
-      bg: 'linear-gradient(135deg, ' + hex + ' 0%, #ffffff 100%)',
-      cardOp: $('#opacitySlider').value,
-      pickColor: hex
+      bg: 'linear-gradient(135deg, ' + hex + ' 0%, ' + (isDarkHex(hex) ? '#1a2029' : '#ffffff') + ' 100%)',
+      pickColor: hex,
+      dark: isDarkHex(hex)
     });
     renderThemePresets(); // 自定义后取消预设高亮
-    scheduleThemeSave();
   };
 
-  $('#opacitySlider').oninput = (e) => {
-    // 保留原来的名称：预设配色只调透明度时仍算该预设
-    applyTheme(Object.assign({}, currentTheme, { cardOp: e.target.value }));
-    scheduleThemeSave();
+  $('#blurSlider').oninput = (e) => updateTheme({ blur: Number(e.target.value) });
+  $('#borderSlider').oninput = (e) => updateTheme({ borderA: Number(e.target.value) });
+  $('#primaryPicker').oninput = (e) => {
+    const wasPreset = currentTheme.name !== '自定义';
+    updateTheme({ primary: e.target.value, name: '自定义' });
+    if(wasPreset) renderThemePresets();
   };
+  $('#accentPicker').oninput = (e) => {
+    const wasPreset = currentTheme.name !== '自定义';
+    updateTheme({ accent: e.target.value, name: '自定义' });
+    if(wasPreset) renderThemePresets();
+  };
+
+  renderSurfaceControls();
+  $('#surfaceControls').addEventListener('input', (e) => {
+    const el = e.target.closest('input[data-op]');
+    if (!el) return;
+    const patch = { op: {} };
+    patch.op[el.dataset.op] = Number(el.value);
+    updateTheme(patch);
+  });
 
   // 绑定 Markdown 快捷键与 HTML 富文本粘贴转换
   function attachRichTextAndShortcuts(inputEl) {
@@ -1000,33 +1244,75 @@ to{opacity:1;transform:none}}
       }
     });
 
-    // 快捷键 Ctrl+B, Ctrl+I, Ctrl+K
+    // ===== Markdown 快捷键 =====
+    // Ctrl+B 加粗 / Ctrl+I 斜体 / Ctrl+K 行内代码 / Ctrl+Shift+Q 引用 / Ctrl+Shift+K 代码块
+    // Ctrl+Z 撤销交给浏览器原生处理：这里全部用 execCommand('insertText') 写入，
+    // 因为直接赋值 textarea.value 会清空浏览器撤销栈，导致 Ctrl+Z 失效。
+    function insertAt(start, end, text, selStart, selEnd) {
+      inputEl.focus();
+      inputEl.setSelectionRange(start, end);
+      let ok = false;
+      try { ok = document.execCommand('insertText', false, text); } catch (err) { ok = false; }
+      if (!ok) {
+        const val = inputEl.value;
+        inputEl.value = val.slice(0, start) + text + val.slice(end);
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (selStart != null) inputEl.setSelectionRange(selStart, selEnd != null ? selEnd : selStart);
+    }
+
     inputEl.addEventListener('keydown', (e) => {
       const isCmdOrCtrl = e.ctrlKey || e.metaKey;
       if (!isCmdOrCtrl) return;
 
       const key = e.key.toLowerCase();
-      let prefix = '', suffix = '';
+      if (key === 'z') return; // 原生撤销 / 重做，不拦截
 
-      if (key === 'b') { prefix = '**'; suffix = '**'; }
-      else if (key === 'i') { prefix = '*'; suffix = '*'; }
-      else if (key === 'k') { prefix = '\x60'; suffix = '\x60'; }
-      else { return; }
-
-      e.preventDefault();
       const start = inputEl.selectionStart;
       const end = inputEl.selectionEnd;
       const val = inputEl.value;
-      const selected = val.substring(start, end);
+      const selected = val.slice(start, end);
 
-      if (selected.length > 0) {
-        inputEl.value = val.substring(0, start) + prefix + selected + suffix + val.substring(end);
-        inputEl.selectionStart = start + prefix.length;
-        inputEl.selectionEnd = end + prefix.length;
-      } else {
-        inputEl.value = val.substring(0, start) + prefix + suffix + val.substring(end);
-        inputEl.selectionStart = start + prefix.length;
-        inputEl.selectionEnd = start + prefix.length;
+      // 行内包裹类
+      let prefix = '', suffix = '';
+      if (!e.shiftKey && key === 'b') { prefix = '**'; suffix = '**'; }
+      else if (!e.shiftKey && key === 'i') { prefix = '*'; suffix = '*'; }
+      else if (!e.shiftKey && key === 'k') { prefix = '\x60'; suffix = '\x60'; }
+
+      if (prefix || suffix) {
+        e.preventDefault();
+        if (selected.length > 0) {
+          insertAt(start, end, prefix + selected + suffix, start + prefix.length, end + prefix.length);
+        } else {
+          insertAt(start, end, prefix + suffix, start + prefix.length, start + prefix.length);
+        }
+        return;
+      }
+
+      // Ctrl+Shift+Q 引用：给选中的每一行加 "> "，已经是引用则取消
+      if (e.shiftKey && key === 'q') {
+        e.preventDefault();
+        const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+        let lineEnd = val.indexOf('\n', end);
+        if (lineEnd === -1) lineEnd = val.length;
+        const lines = val.slice(lineStart, lineEnd).split('\n');
+        const allQuoted = lines.every(l => /^\s*>/.test(l));
+        const out = lines.map(l => allQuoted ? l.replace(/^(\s*)>\s?/, '$1') : ('> ' + l)).join('\n');
+        insertAt(lineStart, lineEnd, out, lineStart, lineStart + out.length);
+        return;
+      }
+
+      // Ctrl+Shift+K 代码块
+      if (e.shiftKey && key === 'k') {
+        e.preventDefault();
+        const fence = '\x60\x60\x60';
+        const body = selected || '';
+        const prepend = (start > 0 && val[start - 1] !== '\n') ? '\n' : '';
+        const text = prepend + fence + '\n' + body + '\n' + fence + '\n';
+        // 光标落在代码块内部正文末尾
+        const caret = start + (prepend + fence + '\n').length + body.length;
+        insertAt(start, end, text, caret, caret);
+        return;
       }
     });
   }
@@ -1069,10 +1355,69 @@ to{opacity:1;transform:none}}
     });
 
     select.value = currentVal;
+    renderCategoryFilter();
   }
 
-  // ===== 分类输入的自定义下拉 =====
-  // 原生 <datalist> 在 iOS Safari 等移动端浏览器根本不弹，统一换成页面内自己画的下拉。
+  // ===== 自绘分类筛选 =====
+  // 原生 select 的弹出列表由系统绘制，CSS 管不到，深色主题下就是白底 + 发白的字。
+  // 这里保留一个隐藏的 <select> 当状态容器，界面用自绘的列表，其余代码照旧读 select.value。
+  function renderCategoryFilter(){
+    const sel = $('#mainCategoryFilter');
+    const pop = $('#catFilterPop');
+    const label = $('#catFilterLabel');
+    if(!sel || !pop || !label) return;
+    const cur = sel.value;
+    const opts = [...sel.options];
+    pop.innerHTML = opts.map(o =>
+      '<div class="opt' + (o.value === cur ? ' active' : '') + '" data-v="' + escHtml(o.value) + '">' +
+        '<span>' + escHtml(o.textContent) + '</span><span class="tick">✓</span></div>'
+    ).join('');
+    const active = opts.find(o => o.value === cur);
+    label.textContent = active ? active.textContent : '全部分类';
+  }
+
+  function closeCategoryFilter(){
+    $('#catFilter').classList.remove('open');
+    $('#catFilterBtn').setAttribute('aria-expanded', 'false');
+  }
+
+  $('#catFilterBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const box = $('#catFilter');
+    const willOpen = !box.classList.contains('open');
+    if(willOpen){
+      renderCategoryFilter();
+      box.classList.add('open');
+      // 贴着右边缘时改成右对齐，避免弹层被视口切掉
+      const pop = $('#catFilterPop');
+      pop.style.left = '0'; pop.style.right = 'auto';
+      const r = pop.getBoundingClientRect();
+      if(r.right > window.innerWidth - 8){ pop.style.left = 'auto'; pop.style.right = '0'; }
+    } else {
+      box.classList.remove('open');
+    }
+    $('#catFilterBtn').setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  });
+  $('#catFilterBtn').addEventListener('keydown', (e) => {
+    if(e.key === 'Escape') closeCategoryFilter();
+  });
+  $('#catFilterPop').addEventListener('click', (e) => {
+    const opt = e.target.closest('.opt');
+    if(!opt) return;
+    const sel = $('#mainCategoryFilter');
+    if(sel.value !== opt.dataset.v){
+      sel.value = opt.dataset.v;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    renderCategoryFilter();
+    closeCategoryFilter();
+  });
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('#catFilter')) closeCategoryFilter();
+  });
+
+  // ===== 输入框下拉建议（分类 / 问题）=====
+  // 原生 <datalist> 在 iOS Safari 等移动端根本不弹，统一用页面内自己画的下拉。
   function escHtml(s){
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -1083,48 +1428,81 @@ to{opacity:1;transform:none}}
     return [...set].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
   }
 
-  function hideCategorySuggest(){
-    const box = $('#catSuggest');
-    if(box) box.classList.remove('show');
+  // 通用建议下拉
+  // mode='tag'：逗号分隔的多标签，点一项是追加；mode='plain'：整串替换
+  const suggestBoxes = [];
+  function attachSuggest(opts){
+    const input = $(opts.input);
+    const box = $(opts.box);
+    if(!input || !box) return;
+    suggestBoxes.push(box);
+
+    const build = () => {
+      const raw = input.value;
+      let chosen = new Set(), typing = '';
+      if(opts.mode === 'tag'){
+        const segs = raw.split(/[,，]/).map(v => v.trim());
+        segs.pop(); // 最后一段是正在输入的半截
+        chosen = new Set(segs.filter(Boolean).map(v => v.toLowerCase()));
+        typing = (raw.split(/[,，]/).pop() || '').trim().toLowerCase();
+      } else {
+        typing = raw.trim().toLowerCase();
+      }
+      const list = (opts.getItems() || [])
+        .filter(v => v && !chosen.has(v.toLowerCase()) && (!typing || v.toLowerCase().includes(typing)))
+        .slice(0, 40);
+
+      box.innerHTML = list.length
+        ? list.map(v => '<div class="opt" data-v="' + escHtml(v) + '"><span>' + escHtml(v) + '</span><span class="tick">＋</span></div>').join('')
+        : '<div class="empty">' + escHtml(opts.emptyText || '没有匹配项') + '</div>';
+      box.classList.add('show');
+    };
+
+    // 切换输入框时先收起其它下拉，避免两个列表叠在一起
+    input.addEventListener('focus', () => {
+      suggestBoxes.forEach(b => { if(b !== box) b.classList.remove('show'); });
+      build();
+    });
+    input.addEventListener('input', build);
+    box.addEventListener('mousedown', (e) => {
+      const opt = e.target.closest('.opt');
+      if(!opt) return;
+      e.preventDefault(); // 保住输入框焦点，避免先触发 blur
+      const val = opt.dataset.v;
+      if(opts.mode === 'tag'){
+        const segs = input.value.split(/[,，]/).map(v => v.trim());
+        segs.pop();
+        const parts = segs.filter(Boolean);
+        if(!parts.some(v => v.toLowerCase() === val.toLowerCase())) parts.push(val);
+        input.value = parts.join(', ') + ', ';
+      } else {
+        input.value = val;
+      }
+      input.focus();
+      build();
+      if(opts.onPick) opts.onPick(val);
+    });
   }
 
-  function renderCategorySuggest(){
-    const box = $('#catSuggest');
-    const input = $('#inputCategory');
-    if(!box || !input) return;
-
-    const raw = input.value;
-    const segs = raw.split(/[,，]/).map(s => s.trim());
-    segs.pop(); // 最后一段是正在输入的半截，不算已选
-    const chosen = new Set(segs.filter(Boolean).map(s => s.toLowerCase()));
-    const typing = (raw.split(/[,，]/).pop() || '').trim().toLowerCase();
-
-    const cats = allCategoryNames().filter(c =>
-      !chosen.has(c.toLowerCase()) && (!typing || c.toLowerCase().includes(typing))
-    );
-
-    box.innerHTML = cats.length
-      ? cats.map(c => '<div class="opt" data-c="' + escHtml(c) + '"><span>' + escHtml(c) + '</span><span class="tick">＋</span></div>').join('')
-      : '<div class="empty">没有匹配的分类，可直接输入新分类</div>';
-    box.classList.add('show');
-  }
-
-  $('#inputCategory').addEventListener('focus', renderCategorySuggest);
-  $('#inputCategory').addEventListener('input', renderCategorySuggest);
-  $('#catSuggest').addEventListener('mousedown', (e) => {
-    const opt = e.target.closest('.opt');
-    if(!opt) return;
-    e.preventDefault(); // 保住输入框焦点，避免先触发 blur
-    const cat = opt.dataset.c;
-    const input = $('#inputCategory');
-    const segs = input.value.split(/[,，]/).map(s => s.trim());
-    segs.pop();
-    const parts = segs.filter(Boolean);
-    if(!parts.some(x => x.toLowerCase() === cat.toLowerCase())) parts.push(cat);
-    input.value = parts.join(', ') + ', ';
-    input.focus();
-    renderCategorySuggest();
+  attachSuggest({
+    input: '#inputCategory', box: '#catSuggest', mode: 'tag',
+    getItems: allCategoryNames,
+    emptyText: '没有匹配的分类，可直接输入新分类'
   });
+
+  attachSuggest({
+    input: '#inputTitle', box: '#titleSuggest', mode: 'plain',
+    getItems: () => points.map(p => (p.title || '').trim()).filter(Boolean),
+    emptyText: '还没有题目，直接输入新的问题即可',
+    onPick: (val) => {
+      const dup = points.filter(p => (p.title || '').trim() === val).length;
+      if(dup) toast('题库里已有同名题目，继续保存会再新增一条');
+    }
+  });
+
+  function hideCategorySuggest(){
+    suggestBoxes.forEach(box => box.classList.remove('show'));
+  }
   document.addEventListener('click', (e) => {
     if(!e.target.closest('.cat-field')) hideCategorySuggest();
   });
@@ -1440,22 +1818,60 @@ to{opacity:1;transform:none}}
     const qEl = el.querySelector('.question');
     qEl.addEventListener('dblclick', (e) => {
       e.stopPropagation();
-      enableInlineEdit(qEl, p, 'title');
+      enableInlineEdit(qEl, p, 'title', e.clientX, e.clientY);
     });
 
     const aEl = el.querySelector('.answer-content');
     aEl.addEventListener('dblclick', (e) => {
       e.stopPropagation();
-      enableInlineEdit(aEl, p, 'content');
+      enableInlineEdit(aEl, p, 'content', e.clientX, e.clientY);
     });
 
     return el;
   }
 
-  function enableInlineEdit(containerEl, pointObj, key) {
+  // 双击位置 → 渲染结果里的字符偏移（必须在替换 DOM 之前算）
+  function caretOffsetFromPoint(x, y, containerEl){
+    let node = null, offset = 0;
+    try {
+      if(document.caretPositionFromPoint){
+        const pos = document.caretPositionFromPoint(x, y);
+        if(pos){ node = pos.offsetNode; offset = pos.offset; }
+      } else if(document.caretRangeFromPoint){
+        const range = document.caretRangeFromPoint(x, y);
+        if(range){ node = range.startContainer; offset = range.startOffset; }
+      }
+    } catch(e) { return 0; }
+
+    if(!node || !containerEl.contains(node)) return 0;
+    try {
+      const r = document.createRange();
+      r.selectNodeContents(containerEl);
+      r.setEnd(node, offset);
+      return r.toString().length;
+    } catch(e) { return 0; }
+  }
+
+  // 渲染后的可见字符偏移 → Markdown 源码偏移。
+  // 源码里的 ** * _ ~ 这些标记不显示，跳过后两边就能对上；对不齐也只是差几个字，够用。
+  function visibleOffsetToSource(offset, source){
+    if(!offset) return 0;
+    let visible = 0, i = 0;
+    while(i < source.length && visible < offset){
+      const ch = source[i];
+      if(ch === '*' || ch === '_' || ch === '\x60' || ch === '~'){ i++; continue; }
+      if(ch === '\\'){ i += 2; visible++; continue; }
+      visible++; i++;
+    }
+    return i;
+  }
+
+  function enableInlineEdit(containerEl, pointObj, key, clickX, clickY) {
     if (containerEl.querySelector('textarea')) return;
     const oldVal = pointObj[key] || '';
-    
+    // 先算偏移，再动 DOM
+    const caretVisible = (clickX == null) ? null : caretOffsetFromPoint(clickX, clickY, containerEl);
+
     const textarea = document.createElement('textarea');
     textarea.className = 'inline-editor';
     textarea.value = oldVal;
@@ -1471,6 +1887,10 @@ to{opacity:1;transform:none}}
     attachRichTextAndShortcuts(textarea);
     autoResize();
     textarea.focus();
+    if(caretVisible != null){
+      const caret = Math.max(0, Math.min(oldVal.length, visibleOffsetToSource(caretVisible, oldVal)));
+      textarea.setSelectionRange(caret, caret);
+    }
 
     textarea.addEventListener('input', autoResize);
 
@@ -1514,7 +1934,7 @@ to{opacity:1;transform:none}}
         '</div>' +
         '<div style="border-top:1px dashed rgba(148,163,184,.35);padding-top:20px;">' +
           '<small style="color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:1px;display:block;margin-bottom:10px;">ANSWER (双击编辑)</small>' +
-          '<div class="answer-content markdown-body" style="font-size:15px;line-height:1.7;color:#334155;">' + renderMarkdown(p.content) + '</div>' +
+          '<div class="answer-content markdown-body" style="font-size:15px;line-height:1.7;">' + renderMarkdown(p.content) + '</div>' +
         '</div>' +
       '</div>';
 
@@ -1524,9 +1944,9 @@ to{opacity:1;transform:none}}
     modal.querySelector('#closeExpandBtn').onclick = closeExpandedCard;
 
     const expQ = modal.querySelector('.question');
-    expQ.ondblclick = (e) => { e.stopPropagation(); enableInlineEdit(expQ, p, 'title'); };
+    expQ.ondblclick = (e) => { e.stopPropagation(); enableInlineEdit(expQ, p, 'title', e.clientX, e.clientY); };
     const expA = modal.querySelector('.answer-content');
-    expA.ondblclick = (e) => { e.stopPropagation(); enableInlineEdit(expA, p, 'content'); };
+    expA.ondblclick = (e) => { e.stopPropagation(); enableInlineEdit(expA, p, 'content', e.clientX, e.clientY); };
 
     openOverlay();
     modal.classList.add('show');
